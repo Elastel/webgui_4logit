@@ -1,0 +1,186 @@
+#!/bin/bash
+model=$(cat /etc/fw_model)
+bit=$(getconf LONG_BIT)
+path="/var/www/html"
+
+if [ ! -n "$model" ]; then
+        model="EG500"
+fi
+
+echo model:$model
+
+if [ $model == "EG500" -o $model == "EG410" -o $model == "ElastBox400" ]; then
+#check openvpn
+        if ! type openvpn >/dev/null 2>&1; then
+                echo "openvpn is NOT installed!"
+                sudo apt-get install openvpn
+
+                if [ $? -ne 0 ] ; then
+                        echo "Failed to install openvpn."
+                        exit 4
+                fi
+        fi
+
+#check wireguard
+        if ! type wg >/dev/null 2>&1; then
+                echo "wireguard is NOT installed!"
+                sudo apt-get install wireguard
+
+                if [ $? -ne 0 ] ; then
+                        echo "Failed to install wireguard."
+                        exit 4
+                fi
+        fi
+
+#close nft service
+        sudo systemctl stop nftables.service
+        sleep 1
+        sudo systemctl disable nftables.service
+fi
+
+sleep 1
+
+if [ "$1" == "reset" ]; then
+    echo $1
+    sudo cp $path/config/hostapd.conf /etc/hostapd/hostapd.conf
+    if [ "$model" = "EG324" ]; then
+        sed -i "s/nl80211/rtl871xdrv/g" /etc/hostapd/hostapd.conf
+    fi
+    sudo cp $path/config/90_raspap.conf /etc/sysctl.d/90_raspap.conf
+    sudo sysctl -p /etc/sysctl.d/90_raspap.conf
+    sudo cp $path/config/090_br0.conf /etc/dnsmasq.d/090_br0.conf
+    sudo cp $path/config/dhcpcd.conf /etc/dhcpcd.conf
+    sudo cp $path/config/defaults.json /etc/raspap/networking/
+    sudo cp $path/Elastel/$model/etc/config/* /etc/config/
+    sleep 1
+    if [ $model != "EG324L" ]; then
+        sudo cp $path/config/090_raspap.conf /etc/dnsmasq.d/090_raspap.conf
+        sudo cp $path/Elastel/$model/etc/WebTunnelAgent.properties /etc/WebTunnelAgent.properties
+        sudo cp $path/config/global_conf.json /etc/global_conf.json
+        # reset wifi ssid
+        sub_mac=$(ifconfig eth0 | grep ether | awk '{print $2}' | cut -f 5-6 -d ":" | tr -d ":")
+    else
+        sudo cp $path/Elastel/$model/etc/WebTunnelAgent.properties /etc/WebTunnelAgent.properties
+        sub_mac=$(ifconfig eth0 | grep HWaddr | awk '{print $5}' | cut -f 5-6 -d ":" | tr -d ":")
+    fi
+
+    ssid="$model"_"$sub_mac"
+    sed -i "s/ssid.*/ssid=$ssid/" /etc/hostapd/hostapd.conf
+fi
+
+sudo cp $path/config/elastel_config.json /etc/elastel_config.json
+sudo cp $path/config/rules.v4 /etc/iptables/rules.v4
+sudo cp $path/installers/service*.sh /etc/raspap/hostapd
+sudo cp $path/Elastel/$model/etc/init.d/* /etc/init.d/
+sleep 1
+if [ $model != "EG324L" ]; then
+        sudo cp $path/config/090_raspap /etc/sudoers.d/090_raspap
+        sudo chown -c root:www-data /etc/raspap/hostapd/*.sh
+        sleep 1
+        sudo rm /etc/rc5.d/S01init-wifi
+        sudo rm /etc/rc5.d/S01terminal
+        sudo rm /etc/rc5.d/S10failover
+        sudo rm /etc/rc5.d/S10lte
+        sudo rm /etc/rc5.d/S10dct
+	sudo rm /etc/rc5.d/S10*daemon
+        sudo rm /etc/rc5.d/S10ddns
+        sudo rm /etc/rc5.d/S10macchina
+        sudo rm /etc/rc5.d/S10gps
+        sudo rm /etc/rc5.d/S10firewall
+        sleep 1
+        sudo ln -s /etc/init.d/init-wifi /etc/rc5.d/S01init-wifi
+        sudo ln -s /etc/init.d/terminal /etc/rc5.d/S01terminal
+        sudo ln -s /etc/init.d/failover /etc/rc5.d/S10failover
+        sudo ln -s /etc/init.d/lte /etc/rc5.d/S10lte
+        sudo ln -s /etc/init.d/dct /etc/rc5.d/S10dct
+        sudo ln -s /etc/init.d/edaemon /etc/rc5.d/S10edaemon
+        sudo ln -s /etc/init.d/ddns /etc/rc5.d/S10ddns
+        sudo ln -s /etc/init.d/macchina /etc/rc5.d/S10macchina
+        sudo ln -s /etc/init.d/gps /etc/rc5.d/S10gps
+        sudo ln -s /etc/init.d/firewall /etc/rc5.d/S10firewall
+else
+        sudo rm /etc/init.d/S90terminal
+        sudo rm /etc/init.d/S90failover
+        sudo rm /etc/init.d/S90lte
+        sudo rm /etc/init.d/S90dct
+        sudo rm /etc/init.d/S90edaemon
+        sudo rm /etc/init.d/S90ddns
+        sudo rm /etc/init.d/S90init-wifi
+	sudo rm /etc/init.d/S90macchina
+	sleep 1
+        sudo ln -s /etc/init.d/terminal /etc/init.d/S90terminal
+        sudo ln -s /etc/init.d/failover /etc/init.d/S90failover
+        sudo ln -s /etc/init.d/lte /etc/init.d/S90lte
+        sudo ln -s /etc/init.d/dct /etc/init.d/S90dct
+        sudo ln -s /etc/init.d/edaemon /etc/init.d/S90edaemon
+        sudo ln -s /etc/init.d/ddns /etc/init.d/S90ddns
+	sudo ln -s /etc/init.d/init-wifi /etc/init.d/S90init-wifi
+	suod ln -s /etc/init.d/macchina /etc/init.d/S90macchina
+fi
+
+if [ $model = "EG500" -o  $model = "EG410" ]; then
+        if [ ! -n "$(grep 'pcf8563' /boot/config.txt)"  ]; then
+                echo "not pcf8563"
+                sudo bash -c "echo 'dtoverlay=i2c-rtc,pcf8563' >> /boot/config.txt"
+        fi
+        sleep 1
+
+        sudo rm /etc/rc5.d/S10loragw
+        sudo ln -s /etc/init.d/loragw /etc/rc5.d/S10loragw
+        sudo /etc/init.d/loragw stop
+fi
+
+sleep 1
+sudo /etc/init.d/dct stop
+sleep 1
+sudo /etc/init.d/lte stop
+sleep 1
+sudo /etc/init.d/failover stop
+sleep 1
+sudo /etc/init.d/ddns stop
+sleep 1
+sudo /etc/init.d/terminal stop
+sleep 1
+sudo /etc/init.d/gps stop
+sleep 1
+
+if [[ $bit = "64" || $model = "EG324" || $model = "EG324L" ]]; then
+	sudo cp -r $path/Elastel/$model/usr/* /usr/
+elif [ $bit = "32" ]; then
+	sudo cp -r $path/Elastel/$model/32/usr/* /usr/
+fi
+sleep 1
+if [ $model = "EG410" ]; then
+	sudo sed -i "s/SX1302_RESET_PIN=6/SX1302_RESET_PIN=5/" /usr/sbin/reset_lgw.sh
+        if [ ! -e /dev/ttyACM0 ]; then
+                sudo cp $path/Elastel/$model/EG410_a/dctd /usr/sbin/dctd
+        fi
+fi
+
+sleep 1
+
+
+if [ $model != "EG324" -a $model != "EG324L" ]; then
+	echo -e "Start feed dog"
+	sudo /var/www/html/installers/feed_dog.sh &
+fi
+
+sleep 1
+
+[ -n "$(pgrep daemond)" ] && {
+        sudo kill -9 $(pgrep daemond)
+}
+
+[ -n "$(pgrep edaemon)" ] && {
+        sudo kill -9 $(pgrep edaemon)
+}
+
+if [[ $bit = "64" || $model = "EG324" || $model = "EG324L" ]]; then
+        sudo cp $path/Elastel/$model/sbin/* /sbin/
+elif [ $bit = "32" ]; then
+        sudo cp $path/Elastel/$model/32/sbin/* /sbin/
+fi
+
+echo -e "Complete to update, it will reboot system."
+sleep 5
+sudo reboot
