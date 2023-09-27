@@ -7,8 +7,6 @@ if [ ! -n "$model" ]; then
         model="EG500"
 fi
 
-echo model:$model
-
 if [ $model == "EG500" -o $model == "EG410" -o $model == "ElastBox400" ]; then
 #check openvpn
         if ! type openvpn >/dev/null 2>&1; then
