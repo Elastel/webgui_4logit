@@ -10,7 +10,7 @@ require_once 'includes/includes.php';
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title><?php echo _("Elastel Configuration Portal"); ?></title>
+    <title><?php echo _("4Logit Configuration Portal"); ?></title>
 
     <!-- Bootstrap Core CSS -->
     <link href="dist/bootstrap/css/bootstrap.css" rel="stylesheet">
@@ -30,14 +30,9 @@ require_once 'includes/includes.php';
     <!-- Custom CSS -->
     <link href="<?php echo $theme_url; ?>" title="main" rel="stylesheet">
 
-    <link rel="shortcut icon" type="image/png" href="app/icons/favicon.png?ver=2.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="app/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="app/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="app/icons/favicon-16x16.png">
     <link rel="icon" type="image/png" href="app/icons/favicon.png" />
-    <link rel="manifest" href="app/icons/site.webmanifest">
-    <link rel="mask-icon" href="app/icons/safari-pinned-tab.svg" color="#b91d47">
-    <meta name="msapplication-config" content="app/icons/browserconfig.xml">
     <meta name="msapplication-TileColor" content="#b91d47">
     <meta name="theme-color" content="#ffffff">
   </head>
