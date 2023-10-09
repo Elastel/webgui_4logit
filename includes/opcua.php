@@ -37,7 +37,7 @@ function saveFileUpload($status, $file)
 
         $upload = \RaspAP\Uploader\Upload::factory('opcua', $tmp_destdir);
         $upload->set_max_file_size(64*KB);
-        $upload->set_allowed_mime_types(array('text/plain'));
+        $upload->set_allowed_mime_types(array('text/plain', 'application/octet-stream'));
         $upload->file($file);
 
         $validation = new validation;
