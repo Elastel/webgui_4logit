@@ -115,3 +115,4 @@ www-data ALL=(ALL) NOPASSWD:/usr/bin/docker *
 www-data ALL=(ALL) NOPASSWD:/usr/bin/timedatectl *
 www-data ALL=(ALL) NOPASSWD:/usr/bin/hostnamectl *
 www-data ALL=(ALL) NOPASSWD:/bin/sed -i * /etc/hosts
+www-data ALL=(ALL) NOPASSWD:/bin/chmod 644 /etc/ssl/opcua/*
