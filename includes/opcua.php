@@ -110,10 +110,8 @@ function saveOpcuaConfig($status)
                 $count = count($_FILES['trust_crt']['name']);
                 for ($i = 0; $i < $count; $i++) {
                     if (is_uploaded_file($_FILES['trust_crt']['tmp_name'][$i])) {
-                        //move_uploaded_file($_FILES['trust_crt']['tmp_name'][$i], "/tmp/opcua/" . $_FILES['trust_crt']['tmp_name'][$i]);
-                        //$tmp_config = $_FILES['trust_crt']['tmp_name'][$i];
-                        //system("sudo chmod +x && sudo mv $tmp_config /etc/ssl/opcua/" . $_FILES['trust_crt']['name'][$i]);
-                        move_uploaded_file($_FILES['trust_crt']['tmp_name'][$i], "/etc/ssl/opcua/" . $_FILES['trust_crt']['name'][$i]);
+                        $tmp_config = $_FILES['trust_crt']['tmp_name'][$i];
+                        system("sudo mv $tmp_config /etc/ssl/opcua/" . $_FILES['trust_crt']['name'][$i]);
                         system("sudo chmod 644 /etc/ssl/opcua/" . $_FILES['trust_crt']['name'][$i]);
                         $trustName .= $_FILES['trust_crt']['name'][$i];
                         if ($i < ($count - 1))
