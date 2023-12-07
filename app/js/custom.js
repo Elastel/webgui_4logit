@@ -404,16 +404,18 @@ function loadOpenvpn() {
     getOpenvpnStatus();
     setInterval(getOpenvpnStatus, 60000);
     $.get('ajax/openvpn/get_openvpncfg.php', function(data) {
-        //console.log(data);
+        // console.log(data);
         jsonData = JSON.parse(data);
         if (jsonData['type'] != 'off') {
             $('#page_role').show();
             if (jsonData['type'] == 'config') {
                 $('#page_config').show();
                 $('#page_ovpn').hide();
+                $('#page_user_pwd').show();
             } else {
                 $('#page_config').hide();
                 $('#page_ovpn').show();
+                $('#page_user_pwd').show();
             }
 
             if (jsonData['role'] == 'client') {
@@ -424,23 +426,10 @@ function loadOpenvpn() {
                 $('#page_server').show();
             }
 
-            if (jsonData['auth_type'] == 'cert') {
-                $('#page_cert').show();
-                $('#page_user_pass').hide();
-                if (jsonData['role'] == 'server') {
-                    $('#page_dh').show();
-                } else {
-                    $('#page_dh').hide();
-                }
+            if (jsonData['role'] == 'server') {
+                $('#page_dh').show();
             } else {
-                $('#page_user_pass').show();
-                if (jsonData['role'] == 'server') {
-                    $('#page_cert').show();
-                    $('#page_dh').show();
-                } else {
-                    $('#page_cert').hide();
-                    $('#page_dh').hide();
-                }
+                $('#page_dh').hide();
             }
 
             for(var key in jsonData){ 
@@ -450,7 +439,7 @@ function loadOpenvpn() {
                 //console.log(key + ":" + jsonData[key]);
                 if (key == 'ca' || key == 'ta' || key == 'cert' || key == 'key' || key == 'ovpn' || key == 'dh') {
                     $('#' + key + '_text').html(jsonData[key]); 
-                } else if (key == 'comp_lzo') {
+                } else if (key == 'comp_lzo' || key == 'enable_auth') {
                     $('#' + key).prop('checked', (jsonData[key] == '1') ? true:false);
                 } else {
                     $('#' + key).val(jsonData[key]); 
@@ -460,6 +449,7 @@ function loadOpenvpn() {
             $('#page_role').hide();
             $('#page_config').hide();
             $('#page_ovpn').hide();
+            $('#page_user_pwd').hide();
         }
         
     });
@@ -468,14 +458,19 @@ function loadOpenvpn() {
 function loadDataLorawan(){
     $.get('ajax/networking/get_loragw.php?type=lorawan', function(data) {
         jsonData = JSON.parse(data);
-        var general = ['server_address', 'serv_port_up', 'serv_port_down', 'gateway_ID',
-        'keepalive_interval', 'stat_interval', 'frequency'];
 
-        if (jsonData['type'] == '1') {
-            $('#type').val('1');
+        var type = jsonData['type'];
+
+        if (type != null) {
+            $('#type').val(type);
         } else {
             $('#type').val('0');
         }
+
+        typeChangeLorawan();
+        
+        var general = ['server_address', 'serv_port_up', 'serv_port_down', 'gateway_ID',
+        'keepalive_interval', 'stat_interval', 'frequency'];
 
         general.forEach(function (info) {
             if (info == null) {
@@ -532,6 +527,27 @@ function loadDataLorawan(){
                     $('#' + info + i).val(jsonData[info + i]);
                 }
             })
+        }
+
+        // $general = array('protocol', 'uri', 'auth_mode', 'client_token');
+        if (type == '2')
+            $('#gateway_ID').val(jsonData['gateway_ID_station']);
+
+        $('#protocol').val(jsonData['protocol']);
+        $('#uri').val(jsonData['uri']);
+        $('#auth_mode').val(jsonData['auth_mode']);
+        modeChange();
+    
+        if (jsonData['lora_ca']) {
+            $('#ca_text').html(jsonData['lora_ca']);
+        }
+
+        if (jsonData['lora_crt']) {
+            $('#crt_text').html(jsonData['lora_crt']);
+        }
+
+        if (jsonData['lora_key']) {
+            $('#key_text').html(jsonData['lora_key']);
         }
     });
 }
@@ -619,7 +635,7 @@ function loadOpcuaConfig() {
             $('#page_opcua').show();
             $('#opcua_enable').prop('checked', true);
 
-            for(var key in jsonData){
+			for(var key in jsonData){
                 if (key == null) {
                     return true;    // continue: return true; break: return false
                 }
@@ -854,7 +870,7 @@ function loadInterfacesConfig() {
     $.get('ajax/dct/get_dctcfg.php?type=interface',function(data) {
         var jsonData = JSON.parse(data);
         var arrCom = ['baudrate', 'databit', 'stopbit', 'parity', 'com_frame_interval',
-                    'com_proto', 'com_cmd_interval', 'com_report_center'];
+					'com_proto', 'com_cmd_interval', 'com_report_center'];
 
         for (var i = 1; i <= 4; i++) {
             $('#com_enabled' + i).val(jsonData['com_enabled' + i]);
@@ -1785,14 +1801,38 @@ function openBox() {
     selectOperator();
 }
 
+function openConfBox() {
+    $('#confBox').show();
+    $('#confLayer').show();
+    document.getElementById("confBox").scrollTop = 0;
+}
+
 function closeBox() {
     $('#popBox').hide();
     $('#popLayer').hide();
 }
 
+function closeConfBox() {
+    $('#confBox').hide();
+    $('#confLayer').hide();
+}
+
 function addData() {
     openBox();
     document.getElementById("page_type").value = "0"; /* 0 is add. other is edit */
+}
+
+function conf_im_ex(conf_name) {
+    document.getElementById('title').innerHTML = conf_name + ' Configure Import Export';
+    openConfBox();
+    if (conf_name == "ADC") {
+        document.getElementById("page_im_ex_name").value = "adc";
+    } else if (conf_name == "DI") {
+        document.getElementById("page_im_ex_name").value = "di";
+        selectMode();
+    } else if (conf_name == "DO") {
+        document.getElementById("page_im_ex_name").value = "do";
+    }
 }
 
 // modbus
@@ -3578,3 +3618,82 @@ $(document).ready(function(){
         itemChange(id);
     });
 });
+
+function typeChangeLorawan() {
+    var type = document.getElementById('type').value;
+    if (type == '0') {
+        $('#page_eui').hide();
+        $('#page_packet_forwarder').hide();
+        $('#page_basic_station').hide();
+    } else if (type == '1') {
+        $('#page_eui').show();
+        $('#page_packet_forwarder').show();
+        $('#page_basic_station').hide();
+    } else if (type == '2') {
+        modeChange();
+        $('#page_eui').show();
+        $('#page_packet_forwarder').hide();
+        $('#page_basic_station').show();
+    }
+}
+
+function modeChange() {
+    var mode = document.getElementById('auth_mode').value;
+
+    if (mode == '0') {
+        $('#page_one').hide();
+        $('#page_two').hide();
+    } else if (mode == '1') {
+        $('#page_one').show();
+        $('#page_two').show();
+    } else if (mode == '2') {
+        $('#page_one').hide();
+        $('#page_two').show();
+    }
+}
+
+function caFileChangeLora() {
+    $('#ca_text').html($('#lora_ca')[0].files[0].name);
+}
+
+function cerFileChangeLora() {
+    $('#crt_text').html($('#lora_crt')[0].files[0].name);
+}
+
+function keyFileChangeLora() {
+    $('#key_text').html($('#lora_key')[0].files[0].name);
+}
+
+
+function downloadFile(conf_name) {
+    let lowerConfName;
+    if (conf_name == 'IO') {
+        lowerConfName = document.getElementById("page_im_ex_name").value;
+    } else {
+        lowerConfName = conf_name.toLowerCase();
+    }
+    
+    var req = new XMLHttpRequest();
+    var url = 'ajax/dct/get_dctcfg.php?type=download_' + lowerConfName;
+    req.open('get', url, true);
+    req.responseType = 'blob';
+    req.setRequestHeader('Content-type', 'text/plain; charset=UTF-8');
+    req.onreadystatechange = function (event) {
+        if(req.readyState == 4 && req.status == 200) {
+            var blob = req.response;
+            var link=document.createElement('a');
+            link.href=window.URL.createObjectURL(blob);
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = ('0' + (now.getMonth() + 1)).slice(-2);
+            const day = ('0' + now.getDate()).slice(-2);
+            const hours = ('0' + now.getHours()).slice(-2);
+            const minutes = ('0' + now.getMinutes()).slice(-2);
+            const seconds = ('0' + now.getSeconds()).slice(-2);
+            const formattedTime = year + month + day + hours + minutes;
+            link.download = lowerConfName + '_' + formattedTime + '.csv';
+            link.click();
+        }
+    }
+    req.send();
+}
