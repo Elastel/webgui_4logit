@@ -36,6 +36,18 @@ if [ $model == "EG500" -o $model == "EG410" -o $model == "ElastBox400" ]; then
         sudo systemctl disable nftables.service
 fi
 
+if [ $model != "EG324L" ]; then
+        if ! type dos2unix > /dev/null 2>&1; then
+                echo "dos2unix is NOT installed!"
+                sudo apt-get install dos2unix
+
+                if [ $? -ne 0 ] ; then
+                        echo "Failed to install dos2unix."
+                        exit 4
+                fi
+        fi
+fi
+
 sleep 1
 
 if [ "$1" == "reset" ]; then
