@@ -848,11 +848,60 @@ function isBinExists($name)
     }
 }
 
+function getPurview()
+{
+    $user = $_SERVER['PHP_AUTH_USER'] ?? "admin";
+    $purview = '32767';
+    $config = getConfig();
+
+    foreach ($config as $key => $value) {
+        if (is_array($value)) {
+            if ($value['admin_user'] == $user) {
+                $purview = $value['purview'];
+                break;
+            }
+        }
+    }
+
+    return $purview;
+}
+
+function getMenuIndex($herf)
+{
+    $index = -1;
+    $model = getModel();
+    if ($model == 'EG500' || $model == 'EG410')
+        $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 'mc_conf', 'io_conf', 'bacnet_client', 'server_conf', 'opcua', 'bacnet', 'datadisplay', 'terminal', 'gps', 'nodered', 'docker');
+    else
+        $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 'mc_conf', 'bacnet_client', 'server_conf', 'opcua', 'bacnet', 'datadisplay', 'terminal', 'nodered', 'docker');
+
+    foreach ($menuList as $key => $value) {
+        if ($value == $herf) {
+            $index = $key;
+            break;
+        }
+    }
+
+    return $index;
+}
+
 function handlePageActions($extraFooterScripts, $page)
 {
     // handle page actions
+    $config = getConfig();
+    $index = getMenuIndex(str_replace('/', "", $page));
+    $purview = getPurview();
+    if ($index == -1) {
+        $status = 1;
+    } else {
+        $status = (intval($purview) >> $index) & 1;
+    }
+
+    if ($status == 0)
+        return;
+
     switch ($page) {
-        case "/wlan0_info":
+        case "/dashboard":
             DisplayDashboard($extraFooterScripts);
             break;
         case "/dhcpd_conf":
@@ -883,7 +932,7 @@ function handlePageActions($extraFooterScripts, $page)
             DisplayTorProxyConfig();
             break;
         case "/auth_conf":
-            DisplayAuthConfig($config['admin_user'], $config['admin_pass']);
+            DisplayAuthConfig($config);
             break;
         case "/save_hostapd_conf":
             SaveTORAndVPNConfig();
@@ -963,7 +1012,28 @@ function handlePageActions($extraFooterScripts, $page)
         case "/docker":
             DisplayDocker();
             break;
+        case "/logout":
+            // $currentUrl = $_SERVER['REQUEST_URI'];
+            // echo $currentUrl;
+            $_SESSION['logout'] = 1;
+            echo '<script type="text/javascript">';
+            echo 'window.location.href = "/"';
+            echo '</script>';
         default:
             DisplayDashboard($extraFooterScripts);
     }
+}
+
+function menuPurviewMatch($purview, $name, $id, $herf, $title)
+{
+    $index = getMenuIndex($herf);
+
+    if ($index == -1) {
+        $status = 1;
+    } else {
+        $status = (intval($purview) >> $index) & 1;
+    }
+    
+    if ($status == 1)
+        echo '<li class="nav-item" name="'. $name .'" id="'. $id .'" ><a class="nav-link" href="'. $herf .'">'. $title .'</a></li>';
 }

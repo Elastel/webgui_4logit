@@ -9,7 +9,7 @@ require_once 'includes/includes.php';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="">
-
+    
     <title><?php echo _("4Logit Configuration Portal"); ?></title>
 
     <!-- Bootstrap Core CSS -->
@@ -47,7 +47,7 @@ require_once 'includes/includes.php';
           <img src="app/img/elastel.php" style="width:100%;height:100%;">
         </div>
         <li class="nav-item">
-          <a class="nav-link" href="wlan0_info"><i class="fas fa-tachometer-alt fa-fw mr-2"></i><span class="nav-label"><?php echo _("Dashboard"); ?></span></a>
+          <a class="nav-link" href="dashboard"><i class="fas fa-tachometer-alt fa-fw mr-2"></i><span class="nav-label"><?php echo _("Dashboard"); ?></span></a>
         </li>
         <li class="nav-item" id="page_network">
           <a class="nav-link navbar-toggle collapsed" id="network" href="#" data-toggle="collapse" data-target="#navbar-collapse-network">
@@ -77,21 +77,24 @@ require_once 'includes/includes.php';
           </a>
           <div class="collapse navbar-collapse" id="navbar-collapse-dct">
             <ul class="nav navbar-nav navbar-right">
-              <li class="nav-item" name="dct_basic" id="dct_basic" ><a class="nav-link" href="basic_conf"><?php echo _("Basic"); ?></a></li>
-              <li class="nav-item" name="interfaces" id="interfaces"><a class="nav-link" href="interfaces_conf"><?php echo _("Interfaces"); ?></a></li>
-              <li class="nav-item" name="modbus" id="modbus"><a class="nav-link" href="modbus_conf"><?php echo _("Modbus Rules"); ?></a></li>
-              <li class="nav-item" name="ascii" id="ascii"><a class="nav-link" href="ascii_conf"><?php echo _("ASCII Rules"); ?></a></li>
-              <li class="nav-item" name="s7" id="s7"><a class="nav-link" href="s7_conf"><?php echo _("S7 Rules"); ?></a></li>
-			        <li class="nav-item" name="fx" id="fx"><a class="nav-link" href="fx_conf"><?php echo _("FX Rules"); ?></a></li>
-              <li class="nav-item" name="mc" id="mc"><a class="nav-link" href="mc_conf"><?php echo _("MC Rules"); ?></a></li>
-              <?php if ($model == "EG500" || $model == "EG410") : ?>
-              <li class="nav-item" name="io" id="io"><a class="nav-link" href="io_conf"><?php echo _("IO"); ?></a></li>
-              <?php endif; ?>
-              <li class="nav-item" name="bacnet_client" id="bacnet_client"><a class="nav-link" href="bacnet_client"><?php echo _("BACnet Client"); ?></a></li>
-              <li class="nav-item" name="server" id="server"><a class="nav-link" href="server_conf"><?php echo _("Server"); ?></a></li>
-              <li class="nav-item" name="opcua" id="opcua"><a class="nav-link" href="opcua"><?php echo _("OPC UA"); ?></a></li>
-              <li class="nav-item" name="bacnet" id="bacnet"><a class="nav-link" href="bacnet"><?php echo _("BACnet Server"); ?></a></li>
-              <li class="nav-item" name="datadisplay" id="datadisplay"><a class="nav-link" href="datadisplay"><?php echo _("Data Display"); ?></a></li>
+              <?php
+                menuPurviewMatch($purview, 'dct_basic', 'dct_basic', 'basic_conf', _('Basic'));
+                menuPurviewMatch($purview, 'interfaces', 'interfaces', 'interfaces_conf', _('Interfaces'));
+                menuPurviewMatch($purview, 'modbus', 'modbus', 'modbus_conf', _('Modbus Rules'));
+                menuPurviewMatch($purview, 'ascii', 'ascii', 'ascii_conf', _('ASCII Rules'));
+                menuPurviewMatch($purview, 's7', 's7', 's7_conf', _('S7 Rules'));
+                menuPurviewMatch($purview, 'fx', 'fx', 'fx_conf', _('FX Rules'));
+                menuPurviewMatch($purview, 'mc', 'mc', 'mc_conf', _('MC Rules'));
+                if ($model == "EG500" || $model == "EG410") : 
+                  menuPurviewMatch($purview, 'io', 'io', 'io_conf', _('IO'));
+                endif;
+                
+                menuPurviewMatch($purview, 'bacnet_client', 'bacnet_client', 'bacnet_client', _('BACnet Client'));
+                menuPurviewMatch($purview, 'server', 'server', 'server_conf', _('Server'));
+                menuPurviewMatch($purview, 'opcua', 'opcua', 'opcua', _('OPC UA'));
+                menuPurviewMatch($purview, 'bacnet', 'bacnet', 'bacnet', _('BACnet Server'));
+                menuPurviewMatch($purview, 'datadisplay', 'datadisplay', 'datadisplay', _('Data Display'));
+              ?>
             </ul>
           </div>
         </li>
@@ -128,16 +131,20 @@ require_once 'includes/includes.php';
           </a>
           <div class="collapse navbar-collapse" id="navbar-collapse-services">
             <ul class="nav navbar-nav navbar-right">
-              <li class="nav-item" name="terminal" id="terminal"> <a class="nav-link" href="terminal"><?php echo _("Terminal"); ?></a></li>
-              <?php if ($model == "EG500" || $model == "EG410") : ?>
-              <li class="nav-item" name="gps" id="gps"> <a class="nav-link" href="gps"><?php echo _("GPS Location"); ?></a></li>
-              <?php endif; ?>
-              <?php if(isBinExists("node-red")) : ?>
-              <li class="nav-item" name="nodered" id="nodered"> <a class="nav-link" href="nodered"><?php echo _("Node Red"); ?></a></li>
-              <?php endif; ?>
-              <?php if(isBinExists("dockerd")) : ?>
-              <li class="nav-item" name="docker" id="docker"> <a class="nav-link" href="docker"><?php echo _("Docker"); ?></a></li>
-              <?php endif; ?>
+              <?php
+                menuPurviewMatch($purview, 'terminal', 'terminal', 'terminal', _('Terminal'));
+                if ($model == "EG500" || $model == "EG410") : 
+                  menuPurviewMatch($purview, 'gps', 'gps', 'gps', _('GPS Location'));
+                endif;
+                
+                if(isBinExists("node-red")) : 
+                  menuPurviewMatch($purview, 'nodered', 'nodered', 'nodered', _('Node Red'));
+                endif;
+
+                if(isBinExists("dockerd")) : 
+                  menuPurviewMatch($purview, 'docker', 'docker', 'docker', _('Docker'));
+                endif; 
+              ?>
             </ul>
           </div>
         </li>
@@ -150,7 +157,9 @@ require_once 'includes/includes.php';
         <li class="nav-item">
           <a class="nav-link" href="about"><i class="fas fa-info-circle fa-fw mr-2"></i><span class="nav-label"><?php echo _("About 4Logit"); ?></a>
         </li>
-
+        <li class="nav-item">
+          <a class="nav-link" name="logout" href="logout"><i class="fas fa-sign-out-alt fa-fw mr-2"></i><span class="nav-label"><?php echo _("Logout"); ?></a>
+        </li>
         <!-- Divider -->
         <hr class="sidebar-divider d-none d-md-block">
       </ul>

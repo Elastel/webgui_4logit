@@ -52,6 +52,7 @@ sleep 1
 
 if [ "$1" == "reset" ]; then
     echo $1
+    sudo cp $path/config/lighttpd.conf /etc/lighttpd/lighttpd.conf
     sudo cp $path/config/hostapd.conf /etc/hostapd/hostapd.conf
     if [ "$model" = "EG324" ]; then
         sed -i "s/nl80211/rtl871xdrv/g" /etc/hostapd/hostapd.conf
@@ -77,6 +78,18 @@ if [ "$1" == "reset" ]; then
 
     ssid="$model"_"$sub_mac"
     sed -i "s/ssid.*/ssid=$ssid/" /etc/hostapd/hostapd.conf
+
+    sudo cp $path/config/cron-logrotate /etc/cron.d/
+    sudo cp $path/config/logrotate-rsyslog /etc/logrotate.d/rsyslog
+    sudo chown -R root:root /etc/logrotate.d/rsyslog
+    sudo cp $path/config/journald.conf /etc/systemd/journald.conf
+
+    sed -i '/^admin/d'  /etc/raspap/system.auth
+    sed -i '/^superadmin/d'  /etc/raspap/system.auth
+    cat $path/config/system.auth >> /tmp/system.auth
+    cat /etc/raspap/system.auth >> /tmp/system.auth
+    cp /tmp/system.auth /etc/raspap/system.auth
+    chown -R www-data:www-data /etc/raspap/system.auth
 fi
 
 sudo cp $path/config/elastel_config.json /etc/elastel_config.json
@@ -197,5 +210,6 @@ elif [ $bit = "32" ]; then
 fi
 
 echo -e "Complete to update, it will reboot system."
+echo $(date +%F%n%T) > /etc/fw_date
 sleep 5
 sudo reboot

@@ -46,10 +46,10 @@ require_once 'includes/bacnet_client.php';
 require_once 'includes/nodered.php';
 require_once 'includes/docker.php';
 
-$config = getConfig();
 $model = getModel();
 $output = $return = 0;
 $page = $_SERVER['PATH_INFO'];
+$purview = getPurview();
 
 $theme_url = getThemeOpt();
 $toggleState = getSidebarState();

@@ -8,7 +8,7 @@ $defaults = [
   'RASPI_BRAND_TEXT' => 'RaspAP',
   'RASPI_VERSION' => '3.0.0.1',
   'RASPI_CONFIG_NETWORK' => RASPI_CONFIG.'/networking/defaults.json',
-  'RASPI_ADMIN_DETAILS' => RASPI_CONFIG.'/raspap.auth',
+  'RASPI_ADMIN_DETAILS' => RASPI_CONFIG.'/system.auth',
   'RASPI_WIFI_AP_INTERFACE' => 'wlan0',
   'RASPI_CACHE_PATH' => sys_get_temp_dir() . '/raspap',
 

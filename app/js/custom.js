@@ -154,6 +154,9 @@ function setCSRFTokenHeader(event, xhr, settings) {
 function contentLoaded() {
     pageCurrent = window.location.href.split("/").pop();
     switch(pageCurrent) {
+        case "dashboard":
+            loadDashboard();
+            break;
         case "network_conf":
             //getAllInterfaces();
             //setupTabs();
@@ -226,6 +229,19 @@ function contentLoaded() {
             loadFirewall();
             break;
     }
+}
+
+function getDashboardData() {
+    $.get('ajax/service/get_dashboard_data.php', function(data) {
+        jsonData = JSON.parse(data);
+        $('#local_time').html(jsonData['local_time']);
+        $('#uptime').html(jsonData['uptime']);
+    })
+}
+
+function loadDashboard() {
+    getDashboardData();
+    setInterval(getDashboardData, 1000);
 }
 
 function loadFirewall() {
@@ -599,8 +615,7 @@ function getWebshowDate() {
 }
 
 function loadDataDisplay() {
-    getWebshowDate();
-    setInterval(getWebshowDate, 1000);
+     
 }
 
 function loadBACnetConfig() {
@@ -1820,6 +1835,12 @@ function closeConfBox() {
 function addData() {
     openBox();
     document.getElementById("page_type").value = "0"; /* 0 is add. other is edit */
+
+    if (document.getElementById("auth.username")) {
+        document.getElementById("auth.username").disabled = false;
+        document.getElementById("auth.username").value = '';
+        document.getElementById("auth.password").value = '';
+    } 
 }
 
 function conf_im_ex(conf_name) {
@@ -3664,6 +3685,116 @@ function keyFileChangeLora() {
     $('#key_text').html($('#lora_key')[0].files[0].name);
 }
 
+function getTableDataAuth() {
+    var tr = $("#table_auth tr");
+    var result = [];
+    for (var i = 2; i < tr.length; i++) {
+        var tds = $(tr[i]).find("td");
+        if (tds.length > 0) {
+            var j = 0;
+            result.push({
+                'username':$(tds[j++]).html(), 
+                'password':$(tds[j++]).html(),
+                'purview':$(tds[j++]).html(),
+            });
+        }
+    }
+
+    return result;    
+}
+
+function editDataAuth(object) {
+    var row = $(object).parent().parent().parent().prevAll().length + 1;
+    console.log(row);
+    document.getElementById("page_type").value = row;
+    var num = 0;
+    var value = $(object).parent().parent().find("td");
+    var username = value.eq(num++).text();
+    var password = value.eq(num++).text();
+    var purview = value.eq(num++).text();
+    var array_name = ['basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'io', 'bacnet_client', 
+        'server', 'opcua', 'bacnet_server', 'datadisplay', 'terminal', 'gps', 'nodered', 'docker'];
+    var i = 0;
+
+    document.getElementById("auth.username").value = username;
+    document.getElementById("auth.username").disabled = true; 
+    document.getElementById("auth.password").value = password;
+    array_name.forEach(function(info){
+        if (document.getElementById('auth.' + info)) {
+            var status = (parseInt(purview) >> i) & 1;
+            document.getElementById('auth.' + info).checked = (status == 1) ? true : false;
+            i++;
+        }
+    })
+
+    openBox();
+}
+
+function delDataAuth(object) {
+    var table = object.parentNode.parentNode.parentNode;
+    var tr = object.parentNode.parentNode;
+    table.removeChild(tr);
+
+    var result = getTableDataAuth();
+    var json_data = JSON.stringify(result);
+    $('#hidTD').val(json_data);
+}
+
+function saveDataAuth() {
+    var result = [];
+    var array_name = ['basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'io', 'bacnet_client', 
+        'server', 'opcua', 'bacnet_server', 'datadisplay', 'terminal', 'gps', 'nodered', 'docker'];
+    var username = document.getElementById("auth.username").value;
+    var password = document.getElementById("auth.password").value;
+    var page_type = document.getElementById("page_type").value;
+    var purview = 0;
+    var i = 0;
+
+    array_name.forEach(function(info){
+        if (document.getElementById('auth.' + info)) {
+            var status = document.getElementById('auth.' + info).checked;
+            purview |= status << i;
+            i++;
+        }
+    })
+
+    if (page_type == "0") {
+        var usernameList = document.getElementById("username_list").value;
+        var json_usernameList = JSON.parse(usernameList);
+        var found = false;
+        json_usernameList.forEach(function(info) {
+            if (info == username) {
+                alert("The username already exists, please re-enter it");
+                found = true;
+                return;
+            }
+        });
+
+        if (found) {
+            return;
+        }
+
+        var table = document.getElementsByTagName("table")[0];
+        table.innerHTML += "<tr  class=\"tr cbi-section-table-descr\">\n" +
+            "        <td style='text-align:center' name='username'>"+ (username.length > 0 ? username : "-") + "</td>\n" +
+            "        <td style='display:none'  name='password'>"+ (password.length > 0 ? password : "-") +"</td>\n" +
+            "        <td style='text-align:center' name='purview'>"+ String(purview) +"</td>\n" +
+            "        <td style='width:10rem'><a href=\"javascript:void(0);\" onclick=\"editDataAuth(this);\" >Edit</a></td>\n" +
+            "        <td style='width:10rem'><a href=\"javascript:void(0);\" onclick=\"delDataAuth(this);\" >Del</a></td>\n" +
+            "    </tr>";
+    } else {
+        var table = document.getElementById("table_auth");
+        var num = 0;
+        table.rows[Number(page_type)].cells[num++].innerHTML = (username.length > 0 ? username : "-");
+        table.rows[Number(page_type)].cells[num++].innerHTML = (password.length > 0 ? password : "-");
+        table.rows[Number(page_type)].cells[num++].innerHTML = String(purview);
+    }
+
+    result = getTableDataAuth();
+    var json_data = JSON.stringify(result);
+    $('#hidTD').val(json_data);
+    closeBox();
+}
 
 function downloadFile(conf_name) {
     let lowerConfName;
