@@ -615,7 +615,8 @@ function getWebshowDate() {
 }
 
 function loadDataDisplay() {
-     
+	getWebshowDate();
+	setInterval(getWebshowDate, 1000);
 }
 
 function loadBACnetConfig() {
