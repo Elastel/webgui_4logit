@@ -127,6 +127,35 @@
                     </label>
                   </div>
                 </div>
+                </br></br>
+                <h4><?php echo _("Custom nodes"); ?></h4>
+                <input type="hidden" name="table_data" value="" id="hidTD">
+                <div class="cbi-section cbi-tblsection" id="page_opcua_server" name="page_opcua_server">
+                  <table class="table cbi-section-table" name="table_opcua_server" id="table_opcua_server">
+                    <tr class="tr cbi-section-table-titles">
+                      <th class="th cbi-section-table-cell" style="width:10%"><?php echo _("Order"); ?></th>
+                      <th class="th cbi-section-table-cell" style="width:40%"><?php echo _("Factor Name"); ?></th>
+                      <th class="th cbi-section-table-cell" style="width:20%"><?php echo _("Data Type"); ?></th>
+                      <th class="th cbi-section-table-cell" style="width:10%"><?php echo _("Current Value"); ?></th>
+                      <th class="th cbi-section-table-cell" style="width:10%"><?php echo _("Enable"); ?></th>
+                      <th class="th cbi-section-table-cell cbi-section-actions"></th>
+                      <th class="th cbi-section-table-cell cbi-section-actions"></th>
+                    </tr>
+                    <tr class="tr cbi-section-table-descr">
+                      <th class="th cbi-section-table-cell" style="width:10%"></th>
+                      <th class="th cbi-section-table-cell" style="width:40%"></th>
+                      <th class="th cbi-section-table-cell" style="width:20%"></th>
+                      <th class="th cbi-section-table-cell" style="width:10%"></th>
+                      <th class="th cbi-section-table-cell" style="width:10%"></th>
+                      <th class="th cbi-section-table-cell" ></th>
+                      <th class="th cbi-section-table-cell" ></th>
+                    </tr>
+                  </table>
+                  <div class="cbi-section-create">
+                    <input type="button" class="cbi-button-add" name="popBox" value="Add" onclick="addData()">
+                    <?php conf_im_ex('Opcua Server'); ?>
+                  </div>
+                </div>
               </div>
             </div>
             <?php echo $buttons ?>
@@ -135,6 +164,44 @@
     </div><!-- card -->
   </div><!-- col-lg-12 -->
 </div>
+
+<?php page_im_ex('opcuaserv');?>
+<div id="popLayer"></div>
+<div id="popBox" style="overflow:auto; height:50%">
+  <input hidden="hidden" name="page_type" id="page_type" value="0">
+  <h4><?php echo _("Custom Nodes Setting"); ?></h4>
+  <div class="cbi-section">
+    <div class="cbi-value">
+      <label class="cbi-value-title" for="widget.order"><?php echo _("Order"); ?></label>
+      <input id="widget.order" type="text" class="cbi-input-text">
+    </div>
+    
+    <div class="cbi-value">
+      <label class="cbi-value-title" for="widget.factor_name"><?php echo _("Factor Name"); ?></label>
+      <input id="widget.factor_name" type="text" class="cbi-input-text">
+    </div>
+
+    <div class="cbi-value">
+      <label class="cbi-value-title" for="widget.data_type"><?php echo _("Data Type"); ?></label>
+      <select id="widget.data_type" class="cbi-input-select">
+        <option value="bool">bool</option>
+        <option value="int">int</option>
+        <option value="float" selected>float</option>
+        <option value="string">string</option>
+      </select>
+    </div>
+
+    <div class="cbi-value">
+      <label class="cbi-value-title" for="widget.enabled"><?php echo _("Enable"); ?></label>
+      <input type="checkbox" id="widget.enabled" value="1" checked="" data-widget-id="widget.enabled">
+    </div>
+  </div>
+
+  <div class="right">
+    <button class="cbi-button" onclick="closeBox()"><?php echo _("Dismiss"); ?></button>
+    <button class="cbi-button cbi-button-positive important" onclick="saveDataOpcuaServer()"><?php echo _("Save"); ?></button>
+  </div>
+</div><!-- popBox -->
 <script type="text/javascript">
   function anonymousCheck(check) {
     if (check.checked == true)  {

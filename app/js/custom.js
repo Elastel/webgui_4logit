@@ -643,9 +643,36 @@ function loadBACnetConfig() {
     });
 }
 
+function getOpcuaDate() {
+    $.get('ajax/dct/get_dctcfg.php?type=opcua_nodes', function(data) {
+        jsonData = JSON.parse(data);
+        var table = document.getElementsByTagName("table")[0];
+        var rows = table.rows;
+
+        for(var key in jsonData) {
+            if (key == null) {
+                return true;    // continue: return true; break: return false
+            }
+
+            for(var i = 0; i < rows.length; i++ ){
+                if (rows[i].cells[1].innerHTML == key) {
+                    if (rows[i].cells[2].innerHTML == 'bool') {
+                        rows[i].cells[3].innerHTML = jsonData[key] == '1' ? 'true' : 'false';
+                    } else {
+                      rows[i].cells[3].innerHTML = jsonData[key];  
+                    }
+                    
+                    break;
+                }
+            }
+        }
+    });
+}
+
 function loadOpcuaConfig() {
     $.get('ajax/dct/get_dctcfg.php?type=opcua',function(data){
-        jsonData = JSON.parse(data);
+        data = JSON.parse(data);
+        jsonData = data.basic;
         $('#enabled').val(jsonData.enabled);
         if (jsonData.enabled == '1') {
             $('#page_opcua').show();
@@ -689,7 +716,32 @@ function loadOpcuaConfig() {
         } else {
             $('#page_security').show();
         }
+
+        var tmpData = data.opcuaserv;
+        if (tmpData != null) {
+            var len = Number(tmpData.length);
+
+            for (var i = 0; i < len; i++) {
+                var table = document.getElementsByTagName("table")[0];
+                table.innerHTML += "<tr  class=\"tr cbi-section-table-descr\">\n" +
+                    "        <td style='text-align:center' name='order'>"+ (tmpData[i].order != null ? tmpData[i].order : "-") + "</td>\n" +
+                    "        <td style='text-align:center' name='factor_name'>"+ (tmpData[i].factor_name != null ? tmpData[i].factor_name : "-") +"</td>\n" +
+                    "        <td style='text-align:center' name='data_type'>"+ (tmpData[i].data_type != null ? tmpData[i].data_type : "-") +"</td>\n" +
+                    "        <td style='text-align:center' name='current_value'>" + (tmpData[i].current_value != null ? tmpData[i].current_value : "-") + "</td>\n" +
+                    "        <td style='text-align:center' name='enabled'>"+ (tmpData[i].enabled == "1" ? true : false) +"</td>\n" +
+                    "        <td><a href=\"javascript:void(0);\" onclick=\"editDataOpcuaServer(this);\" >Edit</a></td>\n" +
+                    "        <td><a href=\"javascript:void(0);\" onclick=\"delDataOpcuaServer(this);\" >Del</a></td>\n" +
+                    "    </tr>";
+            }
+
+            var result = getTableDataOpcuaServer();
+            var json_data = JSON.stringify(result);
+            $('#hidTD').val(json_data);
+            $('#loading').hide();
+        }   
     });
+    getOpcuaDate();
+    setInterval(getOpcuaDate, 1000);
 }
 
 function loadDDNSConfig() {
@@ -3575,6 +3627,95 @@ function editDataBaccli(object) {
     document.getElementById("widget.operand").value = operand;
     document.getElementById("widget.ex").value = ex;
     document.getElementById("widget.accuracy").value = accuracy;
+    if (enabled == "true") {
+        document.getElementById("widget.enabled").checked = true;
+    } else {
+        document.getElementById("widget.enabled").checked = false;
+    }
+
+    openBox();
+}
+
+// opcua server
+function getTableDataOpcuaServer() {
+    var tr = $("#table_opcua_server tr");
+    var result = [];
+    for (var i = 2; i < tr.length; i++) {
+        var tds = $(tr[i]).find("td");
+        if (tds.length > 0) {
+            var j = 0;
+            result.push({
+                'order':$(tds[j++]).html(), 
+                'factor_name':$(tds[j++]).html(),
+                'data_type':$(tds[j++]).html(),
+                'current_value':$(tds[j++]).html(),
+                'enabled':$(tds[j++]).html()
+            });
+        }
+    }
+
+    return result;
+}
+
+function saveDataOpcuaServer() {
+    var result = [];
+    var order = document.getElementById("widget.order").value;
+    var factor_name = document.getElementById("widget.factor_name").value;
+    var data_type = document.getElementById("widget.data_type").value;
+    var enabled = document.getElementById("widget.enabled").checked;
+    var page_type = document.getElementById("page_type").value;
+
+    if (page_type == "0") {
+        var table = document.getElementsByTagName("table")[0];
+        table.innerHTML += "<tr  class=\"tr cbi-section-table-descr\">\n" +
+            "        <td style='text-align:center' name='order'>"+ (order.length > 0 ? order : "-") + "</td>\n" +
+            "        <td style='text-align:center' name='factor_name'>"+ (factor_name.length > 0 ? factor_name : "-") +"</td>\n" +
+            "        <td style='text-align:center' name='data_type'>"+ (data_type.length > 0 ? data_type : "-") +"</td>\n" +
+            "        <td style='text-align:center' name='current_value'>-</td>\n" +
+            "        <td style='text-align:center' name='enabled'>"+ enabled +"</td>\n" +
+            "        <td><a href=\"javascript:void(0);\" onclick=\"editDataOpcuaServer(this);\" >Edit</a></td>\n" +
+            "        <td><a href=\"javascript:void(0);\" onclick=\"delDataOpcuaServer(this);\" >Del</a></td>\n" +
+            "    </tr>";
+    } else {
+        var table = document.getElementById("table_opcua_server");
+        var num = 0;
+        table.rows[Number(page_type)].cells[num++].innerHTML = (order.length > 0 ? order : "-");
+        table.rows[Number(page_type)].cells[num++].innerHTML = (factor_name.length > 0 ? factor_name : "-");
+        table.rows[Number(page_type)].cells[num++].innerHTML = (data_type.length > 0 ? data_type : "-");
+        table.rows[Number(page_type)].cells[num++].innerHTML = "-";
+        table.rows[Number(page_type)].cells[num++].innerHTML = enabled;
+    }
+
+    result = getTableDataOpcuaServer();
+    var json_data = JSON.stringify(result);
+    $('#hidTD').val(json_data);
+    closeBox();
+}
+
+function delDataOpcuaServer(object) {
+    var table = object.parentNode.parentNode.parentNode;
+    var tr = object.parentNode.parentNode;
+    table.removeChild(tr);
+
+    var result = getTableDataOpcuaServer();
+    var json_data = JSON.stringify(result);
+    $('#hidTD').val(json_data);
+}
+
+function editDataOpcuaServer(object) {
+    var row = $(object).parent().parent().parent().prevAll().length + 1;
+    document.getElementById("page_type").value = row;
+    var num = 0;
+    var value = $(object).parent().parent().find("td");
+    var order = value.eq(num++).text();
+    var factor_name = value.eq(num++).text();
+    var data_type = value.eq(num++).text();
+    var current_value = value.eq(num++).text();
+    var enabled = value.eq(num++).text();
+
+    document.getElementById("widget.order").value = order;
+    document.getElementById("widget.factor_name").value = factor_name;
+    document.getElementById("widget.data_type").value = data_type;
     if (enabled == "true") {
         document.getElementById("widget.enabled").checked = true;
     } else {

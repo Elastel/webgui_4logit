@@ -442,6 +442,13 @@ function conf_im_ex($conf_name) {
 
 function page_im_ex($conf_name) {
   $conf_name_lower = strtolower($conf_name);
+  $action_name = '';
+  if ($conf_name_lower == "opcuaserv") {
+    $action_name = "opcua";
+  } else {
+    $action_name = $conf_name_lower . "_conf";
+  }
+  
   echo "<div id=\"confLayer\"></div>
   <div id=\"confBox\" style=\"overflow:auto\">
     <div style=\"margin-top: -1rem; margin-right: -1rem; text-align: right !important;\">
@@ -458,7 +465,7 @@ function page_im_ex($conf_name) {
         <input type=\"submit\" class=\"btn btn-success\" value=\""; echo _("Export"); echo "\" name=\"export\" onclick=\"downloadFile('$conf_name')\">
       </div>
       </br></br>
-      <form method=\"POST\" action=\"" . $conf_name_lower . "_conf\" enctype=\"multipart/form-data\" role=\"form\">";
+      <form method=\"POST\" action=\"" . $action_name . "\" enctype=\"multipart/form-data\" role=\"form\">";
       echo CSRFTokenFieldTag();    
       echo "<div class=\"cbi-value\">
           <input hidden=\"hidden\" name=\"page_im_ex_name\" id=\"page_im_ex_name\" value=\"0\">
@@ -503,11 +510,11 @@ function save_import_file($section, $status, $file) {
         system("sudo mv $file_path $new_file_path");
         
         if (file_exists($new_file_path)) {
-            $status->addMessage('file uploaded successfully', 'info');
-	    exec("sudo dos2unix $new_file_path");
-	    exec("sudo conf_im_ex import $section");
+          $status->addMessage('file uploaded successfully', 'info');
+          exec("sudo dos2unix $new_file_path");
+          exec("sudo conf_im_ex import $section");
         } else {
-            $status->addMessage('fail to upload file', 'danger');
+          $status->addMessage('fail to upload file', 'danger');
         }
 
         return $status;

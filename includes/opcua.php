@@ -20,6 +20,16 @@ function DisplayOpcua()
         }
     }
 
+    if ( isset($_POST['upload']) ) {
+        if (strlen($_FILES['upload_file']['name']) > 0) {
+            if (is_uploaded_file($_FILES['upload_file']['tmp_name'])) {
+                save_import_file('opcuaserv', $status, $_FILES['upload_file']);
+            } else {
+                $status->addMessage('fail to upload file', 'danger');
+            }
+        }
+    }
+
     echo renderTemplate("opcua", compact('status'));
 }
 
@@ -69,6 +79,44 @@ function saveFileUpload($status, $file)
     } catch (RuntimeException $e) {
         $status->addMessage($e->getMessage(), 'danger');
         return $status;
+    }
+}
+
+function saveOpcuaServerNodes()
+{
+    $data = $_POST['table_data'];
+    $arr = json_decode($data, true);
+    $i = 0;
+
+    exec("sudo /usr/sbin/uci_get_count dct opcuaserv", $count);
+
+    if ($count[0] == null || strlen($count[0]) <= 0) {
+        $count[0] = 0;
+    }
+
+    foreach ($arr as $list=>$things) {
+        if (is_array($things)) {
+            exec("sudo /usr/local/bin/uci delete dct.@opcuaserv[$i]");
+            exec("sudo /usr/local/bin/uci add dct opcuaserv");
+            foreach ($things as $key=>$val) {
+                if ($key == "enabled") {
+                    if ($val == "true") {
+                        exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key=1");
+                    } else {
+                        exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key=0");
+                    }
+                } else {
+                    exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key='$val'");
+                }  
+            }
+        }
+        $i++;
+    }
+
+    if (number_format($count[0]) > $i) {
+        for ($j = $i; $j < number_format($count[0]); $j++) {
+            exec("sudo /usr/local/bin/uci delete dct.@opcuaserv[$i]");
+        }
     }
 }
 
@@ -135,6 +183,8 @@ function saveOpcuaConfig($status)
                 exec("sudo /usr/local/bin/uci set dct.opcua.trust_crt='$trustName'");
             }
         }
+
+        saveOpcuaServerNodes();
     }
     exec("sudo /usr/local/bin/uci commit dct");
 
