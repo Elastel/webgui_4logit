@@ -658,8 +658,10 @@ function getOpcuaDate() {
                 if (rows[i].cells[1].innerHTML == key) {
                     if (rows[i].cells[2].innerHTML == 'bool') {
                         rows[i].cells[3].innerHTML = jsonData[key] == '1' ? 'true' : 'false';
+                    } else if (rows[i].cells[2].innerHTML == 'string') {
+                        rows[i].cells[3].innerHTML = jsonData[key].length > 10 ? jsonData[key].slice(0, 10) + '...' : jsonData[key];
                     } else {
-                      rows[i].cells[3].innerHTML = jsonData[key];  
+                        rows[i].cells[3].innerHTML = jsonData[key];
                     }
                     
                     break;
