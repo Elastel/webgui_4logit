@@ -1,7 +1,4 @@
 <?php
-
-require_once 'status_messages.php';
-require_once 'app/lib/system.php';
 require_once 'includes/wifi_functions.php';
 require_once 'includes/config.php';
 
@@ -14,16 +11,28 @@ getWifiInterface();
 function DisplayHostAPDConfig()
 {
     $model = getModel();
-    $status = new StatusMessages();
-    $system = new \RaspAP\System\Sysinfo;
+    $status = new \ElastPro\Messages\StatusMessage;
+    $system = new \ElastPro\System\Sysinfo;
     $arrConfig = array();
-    $arr80211Standard = [
-        'a' => '802.11a - 5 GHz',
-        'b' => '802.11b - 2.4 GHz',
-        'g' => '802.11g - 2.4 GHz',
-        'n' => '802.11n - 2.4 GHz',
-        'ac' => '802.11.ac - 5 GHz'
-    ];
+    $arrHostapdConf = array();
+
+    if ($model == "EG324") {
+        $arr80211Standard = [
+            'a' => '802.11a - 5 GHz',
+            'b' => '802.11b - 2.4 GHz',
+            'g' => '802.11g - 2.4 GHz',
+            'n' => '802.11n - 2.4 GHz'
+        ];
+    } else {
+        $arr80211Standard = [
+            'a' => '802.11a - 5 GHz',
+            'b' => '802.11b - 2.4 GHz',
+            'g' => '802.11g - 2.4 GHz',
+            'n' => '802.11n - 2.4 GHz',
+            'ac' => '802.11.ac - 5 GHz'
+        ];
+    }
+    
 
     $arrSecurity = array(1 => 'WPA', 2 => 'WPA2', 3 => 'WPA+WPA2', 'none' => _("None"));
     $arrEncType = array('TKIP' => 'TKIP', 'CCMP' => 'CCMP', 'TKIP CCMP' => 'TKIP+CCMP');
@@ -45,10 +54,13 @@ function DisplayHostAPDConfig()
         if (isset($_POST['SaveHostAPDSettings']) || isset($_POST['applyHostAPDsettings'])) {
             SaveHostAPDConfig($arrSecurity, $arrEncType, $arr80211Standard, $interfaces, $status, $model);
             $arrHostapdConf = parse_ini_file('/etc/raspap/hostapd.ini');
-
+			
+			exec("sudo uci set wifi.wifi.enabled=". ($_POST['disable_wifi_ap'] == '1' ? '0' : '1'));
+            exec("sudo uci commit wifi");
+			
             if (isset($_POST['applyHostAPDsettings'])) {
-                if ($model == "EG324" || $model == "EG324L") {
-                    exec("sudo /usr/sbin/init-wlan0 >/dev/null &");
+                if (model_category('HT')) {
+                    exec("sudo /usr/sbin/init-wlan0 &");
                 } else {
                     if ($arrHostapdConf['BridgedEnable'] == 1) {
                         exec('sudo /etc/raspap/hostapd/servicestart.sh --interface br0 --seconds 3', $return);
@@ -108,11 +120,9 @@ function DisplayHostAPDConfig()
     if (isset($_POST['txpower']) && ($_POST['txpower'] != 'auto')) {
         $sdBm = $_POST['txpower'] * 100;
         exec('sudo /sbin/iw dev '.$_POST['interface'].' set txpower fixed '.$sdBm, $return);
-        //$status->addMessage('Setting transmit power to '.$_POST['txpower'].' dBm.', 'success');
         $txpower = $_POST['txpower'];
     } elseif ($_POST['txpower'] == 'auto') {
         exec('sudo /sbin/iw dev '.$_POST['interface'].' set txpower auto', $return);
-        //$status->addMessage('Setting transmit power to '.$_POST['txpower'].'.', 'success');
         $txpower = $_POST['txpower'];
     }
 
@@ -269,101 +279,6 @@ function SaveHostAPDConfig($wpa_array, $enc_types, $modes, $interfaces, $status,
 
     if ($good_input) {
 		$return = updateHostapdConfig($ignore_broadcast_ssid,$wifiAPEnable,$bridgedEnable, $model);
-/*
-        // Fetch dhcp-range, lease time from system config
-        $syscfg = parse_ini_file(RASPI_DNSMASQ_PREFIX.$ap_iface.'.conf', false, INI_SCANNER_RAW);
-
-        if ($wifiAPEnable == 1) {
-            // Enable uap0 configuration for ap-sta mode
-            // Set dhcp-range from system config, fallback to default if undefined
-            $dhcp_range = ($syscfg['dhcp-range'] == '') ? getDefaultNetValue('dnsmasq','uap0','dhcp-range') : $syscfg['dhcp-range'];
-            $config = [ '# RaspAP uap0 configuration' ];
-            $config[] = 'interface=lo,uap0               # Enable uap0 interface for wireless client AP mode';
-            $config[] = 'bind-dynamic                    # Hybrid between --bind-interfaces and default';
-            $config[] = 'server=8.8.8.8                  # Forward DNS requests to Google DNS';
-            $config[] = 'domain-needed                   # Don\'t forward short names';
-            $config[] = 'bogus-priv                      # Never forward addresses in the non-routed address spaces';
-            $config[] = 'dhcp-range='.$dhcp_range;
-            if (!empty($syscfg['dhcp-option'])) {
-                $config[] = 'dhcp-option='.$syscfg['dhcp-option'];
-            }
-            $config[] = PHP_EOL;
-            scanConfigDir('/etc/dnsmasq.d/','uap0',$status);
-            $config = join(PHP_EOL, $config);
-            file_put_contents("/tmp/dnsmasqdata", $config);
-            system('sudo cp /tmp/dnsmasqdata '.RASPI_DNSMASQ_PREFIX.$ap_iface.'.conf', $return);
-        } elseif ($bridgedEnable !==1) {
-            $dhcp_range = ($syscfg['dhcp-range'] =='') ? getDefaultNetValue('dnsmasq','wlan0','dhcp-range') : $syscfg['dhcp-range'];
-            $config = [ '# RaspAP '.$_POST['interface'].' configuration' ];
-            $config[] = 'interface='.$_POST['interface'];
-            $config[] = 'domain-needed';
-            $config[] = 'dhcp-range='.$dhcp_range;
-            if (!empty($syscfg['dhcp-option'])) {
-                $config[] = 'dhcp-option='.$syscfg['dhcp-option'];
-            }
-            $config[] = PHP_EOL;
-            $config = join(PHP_EOL, $config);
-            file_put_contents("/tmp/dnsmasqdata", $config);
-            system('sudo cp /tmp/dnsmasqdata '.RASPI_DNSMASQ_PREFIX.$ap_iface.'.conf', $return);
-        }
-
-        // Set dhcp values from system config, fallback to default if undefined
-        $jsonData = json_decode(getNetConfig($ap_iface), true);
-        $ip_address = ($jsonData['StaticIP'] == '') ? getDefaultNetValue('dhcp',$ap_iface,'static ip_address') : $jsonData['StaticIP'];
-        $domain_name_server = ($jsonData['StaticDNS'] =='') ? getDefaultNetValue('dhcp','wlan0','static domain_name_server') : $jsonData['StaticDNS'];
-        $routers = ($jsonData['StaticRouters'] == '') ? getDefaultNetValue('dhcp',$ap_iface,'static routers') : $jsonData['StaticRouters'];
-        $netmask = ($jsonData['SubnetMask'] == '' || $jsonData['SubnetMask'] == '0.0.0.0') ? getDefaultNetValue('dhcp',$ap_iface,'subnetmask') : $jsonData['SubnetMask'];
-        $ip_address.= (!preg_match('/.*\/\d+/', $ip_address)) ? '/'.mask2cidr($netmask) : null;
-
-        if ($bridgedEnable == 1) {
-            $config = array_keys(getDefaultNetOpts('dhcp','options'));
-            $config[] = PHP_EOL.'# RaspAP br0 configuration';
-            $config[] = 'denyinterfaces eth0 wlan0';
-            $config[] = 'interface br0';
-            $config[] = PHP_EOL;
-        } elseif ($wifiAPEnable == 1) {
-            $config = array_keys(getDefaultNetOpts('dhcp','options'));
-            $config[] = PHP_EOL.'# RaspAP uap0 configuration';
-            $config[] = 'interface uap0';
-            $config[] = 'static ip_address='.$ip_address;
-            $config[] = 'nohook wpa_supplicant';
-            $config[] = PHP_EOL;
-        } else {
-            $def_ip = array();
-            $config = [ '# RaspAP '.$ap_iface.' configuration' ];
-            $config[] = 'interface '.$ap_iface;
-            $config[] = 'static ip_address='.$ip_address;
-            $config[] = 'static routers='.$routers;
-            $config[] = 'static domain_name_server='.$domain_name_server;
-            if (! is_null($jsonData['Metric'])) { $config[] = 'metric '.$jsonData['Metric']; }
-        }
-        $dhcp_cfg = file_get_contents(RASPI_DHCPCD_CONFIG);
-        if ($bridgedEnable == 1 || $wifiAPEnable == 1) {
-            $dhcp_cfg = join(PHP_EOL, $config);
-            $status->addMessage('DHCP configuration for '.$ap_iface.' enabled.', 'success');
-        } elseif (!preg_match('/^interface\s'.$ap_iface.'$/m', $dhcp_cfg)) {
-            $config[] = PHP_EOL;
-            $config= join(PHP_EOL, $config);
-            $dhcp_cfg = removeDHCPIface($dhcp_cfg,'br0');
-            $dhcp_cfg = removeDHCPIface($dhcp_cfg,'uap0');
-            $dhcp_cfg .= $config;
-            $status->addMessage('DHCP configuration for '.$ap_iface.' added.', 'success');
-        } else {
-            $config = join(PHP_EOL, $config);
-            $dhcp_cfg = removeDHCPIface($dhcp_cfg,'br0');
-            $dhcp_cfg = removeDHCPIface($dhcp_cfg,'uap0');
-            $dhcp_cfg = preg_replace('/^#\sRaspAP\s'.$ap_iface.'\s.*?(?=\s*^\s*$)/ms', $config, $dhcp_cfg, 1);
-            $status->addMessage('DHCP configuration for '.$ap_iface.' updated.', 'success');
-        }
-        file_put_contents("/tmp/dhcpddata", $dhcp_cfg);
-        system('sudo cp /tmp/dhcpddata '.RASPI_DHCPCD_CONFIG, $return);
-
-        if ($return == 0) {
-            $status->addMessage('Wifi Hotspot settings saved', 'success');
-        } else {
-            $status->addMessage('Unable to save wifi hotspot settings', 'danger');
-        }
-*/
     } else {
         $status->addMessage('Unable to save wifi hotspot settings', 'danger');
         return false;
@@ -385,25 +300,6 @@ function updateHostapdConfig($ignore_broadcast_ssid,$wifiAPEnable,$bridgedEnable
     } else {
         $config = 'driver=nl80211'.PHP_EOL;
     }
-
-    
-    if (isset($_POST['enable_wifi_client'])) {
-        exec('sudo /usr/local/bin/uci set wifi.wifi_client.enabled=1');
-    } else {
-        exec('sudo /usr/local/bin/uci get wifi.wifi_client.enabled', $ret);
-        if ($ret[0] == '1') {
-            exec('sudo /usr/local/bin/uci set wifi.wifi_client.enabled=0');
-            exec("sudo /usr/bin/killall wpa_supplicant");
-        }
-        
-        if (isset($_POST['disable_wifi_ap'])) {
-            exec('sudo /usr/local/bin/uci set wifi.wifi.enabled=0');
-        } else {
-            exec('sudo /usr/local/bin/uci set wifi.wifi.enabled=1');
-        }
-    }
-
-    exec("sudo /usr/local/bin/uci commit wifi");
     
     $config.= 'ctrl_interface='.RASPI_HOSTAPD_CTRL_INTERFACE.PHP_EOL;
     $config.= 'ctrl_interface_group=0'.PHP_EOL;

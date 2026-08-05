@@ -1,95 +1,32 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
-require_once 'app/lib/system.php';
 
-/**
- * Find the version of the Raspberry Pi
- * Currently only used for the system information page but may useful elsewhere
- */
-
-function RPiVersion()
-{
-    // Lookup table from http://www.raspberrypi-spy.co.uk/2012/09/checking-your-raspberry-pi-board-version/
-    $revisions = array(
-    '0002' => 'Model B Revision 1.0',
-    '0003' => 'Model B Revision 1.0 + ECN0001',
-    '0004' => 'Model B Revision 2.0 (256 MB)',
-    '0005' => 'Model B Revision 2.0 (256 MB)',
-    '0006' => 'Model B Revision 2.0 (256 MB)',
-    '0007' => 'Model A',
-    '0008' => 'Model A',
-    '0009' => 'Model A',
-    '000d' => 'Model B Revision 2.0 (512 MB)',
-    '000e' => 'Model B Revision 2.0 (512 MB)',
-    '000f' => 'Model B Revision 2.0 (512 MB)',
-    '0010' => 'Model B+',
-    '0013' => 'Model B+',
-    '0011' => 'Compute Module',
-    '0012' => 'Model A+',
-    'a01041' => 'a01041',
-    'a21041' => 'a21041',
-    '900092' => 'PiZero 1.2',
-    '900093' => 'PiZero 1.3',
-    '9000c1' => 'PiZero W',
-    'a02082' => 'Pi 3 Model B',
-    'a22082' => 'Pi 3 Model B',
-    'a32082' => 'Pi 3 Model B',
-    'a52082' => 'Pi 3 Model B',
-    'a020d3' => 'Pi 3 Model B+',
-    'a220a0' => 'Compute Module 3',
-    'a020a0' => 'Compute Module 3',
-    'a02100' => 'Compute Module 3+',
-    'a03111' => 'Model 4B Revision 1.1 (1 GB)',
-    'b03111' => 'Model 4B Revision 1.1 (2 GB)',
-    'c03111' => 'Model 4B Revision 1.1 (4 GB)'
-    );
-
-    $cpuinfo_array = '';
-    exec('cat /proc/cpuinfo', $cpuinfo_array);
-    $rev = trim(array_pop(explode(':', array_pop(preg_grep("/^Revision/", $cpuinfo_array)))));
-    if (array_key_exists($rev, $revisions)) {
-        return $revisions[$rev];
-    } else {
-        exec('cat /proc/device-tree/model', $model);
-        if (isset($model[0])) {
-            return $model[0];
-        } else {
-            return 'Unknown Device';
-        }
-    }
-}
-
-/**
- *
- *
- */
 function DisplaySystem()
 {
 
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
     $model = getModel();
 
     if (isset($_POST['applyProperties'])) {
         if (isset($_POST['hostname'])) {
-            exec("cat /proc/sys/kernel/hostname", $buff);
-            $old_hostname = $buff[0];
             $new_hostname = $_POST['hostname'];
-            exec("sudo hostnamectl set-hostname $new_hostname");
-            exec("sudo sed -i 's/$old_hostname/$new_hostname/g' /etc/hosts");
+            exec("sudo /var/www/html/installers/update_hostname.sh $new_hostname", $return);
         }
 
         if (isset($_POST['timezones'])) {
-            exec("sudo timedatectl set-timezone " . $_POST['timezones']);
+            $timezone = $_POST['timezones'];
+            exec("sudo ln -sf /usr/share/zoneinfo/$timezone /etc/localtime");
         }
 
-        $status->addMessage('Update success', 'success');
+        $status->addMessage('Configuration applied.', 'success');
     }
 
     if (isset($_POST['SaveLanguage'])) {
         if (isset($_POST['locale'])) {
             $_SESSION['locale'] = $_POST['locale'];
+            exec("sudo uci set system.system.locale=$_POST[locale]");
+            exec("sudo uci commit system");
             $status->addMessage('Language setting saved', 'success');
         }
     }
@@ -138,9 +75,6 @@ function DisplaySystem()
     if (isset($_POST['RestartLighttpd'])) {
         $status->addMessage('Restarting lighttpd in 3 seconds...', 'info');
         exec('sudo /etc/raspap/lighttpd/configport.sh --restart');
-        // if ($model == "EG324L") {
-        //     shell_exec('/etc/init.d/S50lighttpd restart &> /dev/null');
-        // }
     }
     exec('cat '. RASPI_LIGHTTPD_CONFIG, $return);
     $conf = ParseConfig($return);
@@ -152,7 +86,7 @@ function DisplaySystem()
         'en_GB.UTF-8' => 'English',
         // 'cs_CZ.UTF-8' => 'Čeština',
         // 'zh_TW.UTF-8' => '正體中文 (Chinese traditional)',
-        // 'zh_CN.UTF-8' => '简体中文 (Chinese simplified)',
+        'zh_CN.UTF-8' => '简体中文 (Chinese simplified)',
         // 'da_DK.UTF-8' => 'Dansk',
         // 'de_DE.UTF-8' => 'Deutsch',
         // 'es_MX.UTF-8' => 'Español',
@@ -174,7 +108,7 @@ function DisplaySystem()
     );
 
     #fetch system status variables.
-    $system = new \RaspAP\System\Sysinfo;
+    $system = new \ElastPro\System\Sysinfo;
 
     // $hostname = $system->hostname();
     $uptime   = $system->uptime();
@@ -205,7 +139,12 @@ function DisplaySystem()
     }
 
     // cpu temp
-    $cputemp = $system->systemTemperature();
+    if ($model != 'EG324L') {
+        $cputemp = $system->systemTemperature();
+    } else {
+        $cputemp = file_get_contents("/sys/class/thermal/thermal_zone0/temp");
+    }
+    
     if ($cputemp > 70) {
         $cputemp_status = "danger";
         $cputemp_led = "service-status-down";
@@ -228,22 +167,28 @@ function DisplaySystem()
     }
 
     // properties
-    exec("date '+%Y-%m-%d %H:%M:%S'", $tmp);
-    $current_time = $tmp[0];
+    $current_time = getSystemTime();
 
-    exec("cat /etc/timezone", $cur_timezone);
-    $_SESSION['timezones'] = $cur_timezone[0];
+    exec("readlink /etc/localtime", $cur_timezone);
+    if ($cur_timezone[0] == null) {
+        exec("sudo ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime");
+        $_SESSION['timezones'] = "Asia/Shanghai";
+    } else {
+        $substring = "zoneinfo/";
+        $result = strstr($cur_timezone[0], $substring, false);
+        $result = substr($result, strlen($substring));
 
-    unset($tmp);
-    exec("cat /proc/sys/kernel/hostname", $tmp);
-    $cur_hostname = $tmp[0];
+        $_SESSION['timezones'] = $result;
+    }
+    
+    $cur_hostname = getHostname();
+    $sn = getSn();
 
     echo renderTemplate("system", compact(
         "arrLocales",
         "status",
         "serverPort",
         "serverBind",
-        "hostname",
         "uptime",
         "cores",
         "memused",
@@ -258,6 +203,7 @@ function DisplaySystem()
         "hostapd_status",
         "hostapd_led",
         "current_time",
-        "cur_hostname"
+        "cur_hostname",
+        "sn"
     ));
 }

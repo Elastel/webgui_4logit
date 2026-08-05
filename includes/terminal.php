@@ -1,21 +1,21 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayTerminal()
 {
 
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['saveterminalsettings']) || isset($_POST['applyterminalsettings'])) {
             exec("sudo /usr/local/bin/uci set terminal.terminal.port=" .$_POST['port']);
             exec("sudo /usr/local/bin/uci set terminal.terminal.interface=" .$_POST['interface']);
 	        exec("sudo /usr/local/bin/uci commit terminal");
 
+            $status->addMessage('Configuration updated.', 'success');
             if (isset($_POST['applyterminalsettings'])) {
                 exec("sudo /etc/init.d/terminal restart");
-                $status->addMessage('Restart terminal successfully', 'info');
+                $status->addMessage('Configuration applied.', 'info');
             }
         }
     }
@@ -25,15 +25,20 @@ function DisplayTerminal()
             if (is_uploaded_file($_FILES['upload_file']['tmp_name'])) {
                 SaveUploadFile($status, $_FILES['upload_file']);
             } else {
-                $status->addMessage('fail to upload file', 'danger');
+                $status->addMessage('Fail to upload file', 'danger');
             }
         }
     }
 
     exec('sudo /usr/local/bin/uci get terminal.terminal.port', $port);
     exec('sudo /usr/local/bin/uci get terminal.terminal.interface', $interface);
-    exec("ip -o link show | awk -F': ' '{print $2}'", $interface_list);
-    sort($interface_list); 
+    exec("ip -o link show | awk -F': ' '{print $2}'", $tmp);
+    sort($tmp);
+
+    $interface_list = array();
+    foreach ($tmp as $value) {
+        $interface_list["$value"] = $value;
+    }
 
     if ($port[0] == null) {
         $prot[0] = '7681';
@@ -70,9 +75,9 @@ function SaveUploadFile($status, $file)
             throw new RuntimeException('Invalid parameters');
         }
 
-        $upload = \RaspAP\Uploader\Upload::factory('terminal' . $num, $tmp_destdir);
-        $upload->set_max_file_size(2048*KB);
-        $upload->set_allowed_mime_types(array('text/plain', 'application/x-sharedlib', 'application/octet-stream'));
+        $upload = \ElastPro\Uploader\FileUpload::factory('terminal' . $num, $tmp_destdir);
+        $upload->set_max_file_size(10*1024*KB);
+        $upload->set_allowed_mime_types(array());
         $upload->file($file);
         $validation = new validation;
         $upload->callbacks($validation, array('check_name_length'));
@@ -91,7 +96,7 @@ function SaveUploadFile($status, $file)
             system("sudo chmod -R 755 /tmp/terminal");
             $status->addMessage('file uploaded successfully:' . $new_file_path, 'info');
         } else {
-            $status->addMessage('fail to upload file', 'danger');
+            $status->addMessage('Fail to upload file', 'danger');
         }
 
         return $status;

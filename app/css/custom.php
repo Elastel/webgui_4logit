@@ -20,6 +20,12 @@ Description: Default theme for RaspAP
 License: GNU General Public License v3.0
 */
 
+@import url('all.css');
+
+:root {
+  --raspap-theme-color: <?php echo $color; ?>;
+}
+
 body {
   color: #212529;
 }
@@ -86,6 +92,7 @@ body {
 
 .nav-item {
   font-size: 0.85rem;
+  max-width: 100%;
 }
 
 .nav-tabs .nav-link.active,
@@ -103,6 +110,7 @@ a.nav-link.active {
 
 .sidebar .nav-item .nav-link {
   padding: 0.6rem 0.6rem 0.6rem 1.0rem;
+  max-width: 100%;
 }
 
 .alert-success {
@@ -294,12 +302,16 @@ canvas#divDBChartBandwidthhourly {
   margin-left:0rem;
 }
 .cbi-value-title {
-  width: 15rem;
+  width: 100%;
+  max-width: 15rem;
+  min-width: 5rem;
   text-align:right;
   margin-right:0.5rem;
 }
 .cbi-input-text {
-  min-width: 20rem;
+  width: 100%;
+  min-width: 5rem;
+  max-width: 20rem;
   height: calc(1.5em + 0.75rem);
   color: #6e707e;
   background-color: #fff;
@@ -311,6 +323,7 @@ canvas#divDBChartBandwidthhourly {
 .cbi-input-checkbox {
   text-align:left;
 }
+
 .cbi-value-description {
     font-size: small;
     padding-top: 0.4rem;
@@ -323,7 +336,9 @@ canvas#divDBChartBandwidthhourly {
 }
 
 .cbi-input-select {
-  min-width: 20rem;
+  width: 100%;
+  max-width: 20rem;
+  min-width: 5rem;
   height: calc(1.5em + 0.75rem);
   color: #6e707e;
   background-color: #fff;
@@ -339,6 +354,7 @@ canvas#divDBChartBandwidthhourly {
 
 .cbi-section-table {
   max-width: auto;
+  table-layout: fixed;
 }
 
 .cbi-section-table-titles {
@@ -361,12 +377,14 @@ canvas#divDBChartBandwidthhourly {
 }
 
 .cbi-section-create {
-	display: inline-flex;
-	align-items: center;
-	margin: .5rem -3px;
+	display: flex;
+  align-items: center;
+  margin: 0.5rem -3px;
+  flex-wrap: wrap;
+  gap: 2rem;
 }
 
-.cbi-button-add{
+.cbi-button-add {
   font-size: 1rem;
   margin-top: 2rem;
   text-transform: uppercase;
@@ -375,6 +393,12 @@ canvas#divDBChartBandwidthhourly {
   color: #fff;
   border: thin solid <?php echo $color; ?>;
   background-color: <?php echo $color; ?>;
+  max-width: 100%;
+  padding: 0.5rem 1rem;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #popLayer,
@@ -383,12 +407,12 @@ canvas#divDBChartBandwidthhourly {
 #traffic_popLayer {
   display: none;
   background-color: #B3B3B3;
-  position: absolute;
+  position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 10;
+  z-index: 9999;
   -moz-opacity: 0.8;
   opacity:.80;
   filter: alpha(opacity=80);
@@ -400,7 +424,7 @@ canvas#divDBChartBandwidthhourly {
 #traffic_popBox {
   display: none;
   background-color: #FFFFFF;
-  z-index: 11;
+  z-index: 10000;
   width: 85%;
   height: 85%;
   position:fixed;
@@ -410,6 +434,7 @@ canvas#divDBChartBandwidthhourly {
   bottom:0;
   padding: 1em;
   margin: 3em auto;
+  overflow-y: auto;
 }
 
 #confBox {
@@ -538,6 +563,15 @@ canvas#divDBChartBandwidthhourly {
   100% {transform: rotate(360deg);}
 }
 
+.table-label-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .table-label-key{
   text-align:right; 
   width:9rem;
@@ -591,4 +625,58 @@ canvas#divDBChartBandwidthhourly {
 .conf-btn:hover {
   background-color: #E81123;
   border: 0;
+}
+
+.custom-fullscreen {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+}
+
+.custom-fullscreen .modal-content {
+    height: 100%;
+    // background: url('app/img/bg.png') no-repeat center center;
+    background-size: cover !important;
+    border: none;
+}
+
+#page_datadisplay {
+  max-height: 35rem;
+  overflow-y: auto;
+  height: auto;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    width: 200px;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    width: 20rem;
+    max-height: 150px;
+    overflow-y: auto;
+    left: 18.8rem
+}
+
+.dropdown-content div {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.dropdown-content div:hover {
+    background-color: #f1f1f1;
+}
+
+.show {
+    display: block;
 }

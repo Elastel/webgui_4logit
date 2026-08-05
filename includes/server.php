@@ -1,11 +1,10 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayServer()
 {   
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['saveserversettings']) || isset($_POST['applyserversettings'])) {
@@ -14,6 +13,7 @@ function DisplayServer()
             if (isset($_POST['applyserversettings'])) {
                 sleep(2);
                 exec('sudo /etc/init.d/dct restart > /dev/null');
+                $status->addMessage('Configuration applied.', 'success');
             }
         }
     }
@@ -33,7 +33,7 @@ function SaveServerUpload($status, $file, $num)
             throw new RuntimeException('Invalid parameters');
         }
 
-        $upload = \RaspAP\Uploader\Upload::factory('server' . $num, $tmp_destdir);
+        $upload = \ElastPro\Uploader\FileUpload::factory('server' . $num, $tmp_destdir);
         $upload->set_max_file_size(64*KB);
         $upload->set_allowed_mime_types(array('text/plain'));
         $upload->file($file);
@@ -72,21 +72,16 @@ function SaveServerUpload($status, $file, $num)
 
 function saveServerConfig($status)
 {
-
-    $return = 1;
-    $error = array();
-
     for ($i = 1; $i <= 5; $i++) {
-        exec('sudo /usr/local/bin/uci set dct.server.enabled' . $i . '=' .$_POST['enabled' . $i]);
+        $data['enabled' . $i] = $_POST['enabled' . $i] ?? '0';
         if ($_POST['enabled' . $i] == '1') {
-            
             if ($_POST['certificate_type' . $i] == '1' && $_POST['proto' . $i] == '2') {
                 if (strlen($_FILES['mqtt_ca' . $i]['name']) > 0) {
                     if (is_uploaded_file($_FILES['mqtt_ca' . $i]['tmp_name'])) {
                         SaveServerUpload($status, $_FILES['mqtt_ca' . $i], $i);
                     }
                     $fileName = $_FILES['mqtt_ca' . $i]['name'];
-                    exec('sudo /usr/local/bin/uci set dct.server.mqtt_ca' . $i . '=' . $fileName);
+                    $data['mqtt_ca' . $i] = $fileName;
                 }     
             } else if ($_POST['certificate_type' . $i] == '2'  && $_POST['proto' . $i] == '2') {
                 if (strlen($_FILES['mqtt_ca' . $i]['name']) > 0) {
@@ -94,7 +89,7 @@ function saveServerConfig($status)
                         SaveServerUpload($status, $_FILES['mqtt_ca' . $i], $i);
                     }
                     $fileName = $_FILES['mqtt_ca' . $i]['name'];
-                    exec('sudo /usr/local/bin/uci set dct.server.mqtt_ca' . $i . '=' . $fileName);
+                    $data['mqtt_ca' . $i] = $fileName;
                 }
 
                 if (strlen($_FILES['mqtt_cert' . $i]['name']) > 0) {
@@ -103,7 +98,7 @@ function saveServerConfig($status)
                     }
 
                     $certName = $_FILES['mqtt_cert' . $i]['name'];
-                    exec('sudo /usr/local/bin/uci set dct.server.mqtt_cert' . $i . '=' . $certName);
+                    $data['mqtt_cert' . $i] = $certName;
                 }
 
                 if (strlen($_FILES['mqtt_key' . $i]['name']) > 0) {
@@ -112,26 +107,29 @@ function saveServerConfig($status)
                     }
 
                     $keyName = $_FILES['mqtt_key' . $i]['name'];
-                    exec('sudo /usr/local/bin/uci set dct.server.mqtt_key' . $i . '=' . $keyName);
+                    $data['mqtt_key' . $i] = $keyName;
                 }
             }
-            $serverInfo = array("proto", "encap_type", "server_addr", "http_url", "server_port", "cache_enabled", 
+
+            $serverInfo = array("proto", "encap_type", "json_format", "server_addr", "http_url", "server_port", "cache_enabled", 
                 "register_packet", "register_packet_hex", "heartbeat_packet", "heartbeat_packet_hex", "heartbeat_interval",
-                "mqtt_heartbeat_interval", "mqtt_pub_topic", "mqtt_sub_topic", "mqtt_username", "mqtt_password", 
-                "mqtt_client_id", "mqtt_tls_enabled", "certificate_type", "mqtt_ca", "mqtt_cert", "mqtt_key", 
+                "mqtt_heartbeat_interval", "mqtt_pub_topic", "mqtt_sub_topic", "mqtt_username", "mqtt_password", "sparkplug_group_id",
+                "sparkplug_node_id", "sparkplug_device_id", "mqtt_client_id", "mqtt_tls_enabled", "certificate_type", "mqtt_ca", "mqtt_cert", "mqtt_key", 
+                "self_define_header", "header_name1_", "header_value1_", "header_name2_", "header_value2_", "header_name3_", "header_value3_",
                 "self_define_var", "var_name1_", "var_value1_", "var_name2_", "var_value2_", "var_name3_", "var_value3_", 
                 "mn", "st", "pw");
 
             foreach ($serverInfo as $info) {
                 if ($info != "mqtt_ca" && $info != "mqtt_cert" && $info != "mqtt_key") {
-                    exec('sudo /usr/local/bin/uci set dct.server.' . $info . $i . '=' .$_POST[$info . $i]);
+                    $data[$info . $i] = $_POST[$info . $i] ?? '';
                 } 
             }
         }
     }
 
-    exec('sudo /usr/local/bin/uci commit dct');
+    $json_data = json_encode($data);
+    file_put_contents(ELASTEL_DCT_CONFIG_JSON, $json_data);
+    exec('sudo /usr/sbin/set_config ' . ELASTEL_DCT_CONFIG_JSON . ' dct server');
 
-    $status->addMessage('dct configuration updated ', 'success');
-    return true;
+    $status->addMessage('Configuration updated.', 'success');
 }

@@ -1,11 +1,10 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayGps()
 {   
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['savegpssettings']) || isset($_POST['applygpssettings'])) {
@@ -13,6 +12,7 @@ function DisplayGps()
             
             if (isset($_POST['applygpssettings'])) {
                 exec('sudo /etc/init.d/gps restart > /dev/null');
+                $status->addMessage('Configuration applied.', 'success');
             }
         }
     }
@@ -26,7 +26,7 @@ function saveGpsConfig($status)
 {
     $arrInfo = array('output_mode', 'server_addr', 'server_port', 'report_mode', 'register_packet',
         'heartbeat_packet', 'report_interval', 'heartbeat_interval', 'baudrate', 'databit', 'stopbit',
-        'parity');
+        'parity', 'accuracy');
 
     exec("sudo /usr/local/bin/uci set gps.conf.enabled=" .$_POST['enabled']);
     if ($_POST['enabled'] == "1") {
@@ -37,7 +37,7 @@ function saveGpsConfig($status)
     
     exec("sudo /usr/local/bin/uci commit gps");
 
-    $status->addMessage('configuration updated ', 'success');
+    $status->addMessage('Configuration updated.', 'success');
     return true;
 }
 

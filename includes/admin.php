@@ -1,13 +1,10 @@
 <?php
-
-require_once 'includes/status_messages.php';
-
-function DisplayAuthConfig($config)
+function DisplayAuthConfig($username)
 {
-    $username = $_SERVER['PHP_AUTH_USER'];
-    $password = '';
-    $purview = '';
-
+    $status = new \ElastPro\Messages\StatusMessage;
+    $auth = new \ElastPro\Auth\HTTPAuth;
+    $config = $auth->getAuthConfig();
+    
     foreach ($config as $key => $value) {
         if (is_array($value)) {
             if ($value['admin_user'] == $username) {
@@ -17,8 +14,9 @@ function DisplayAuthConfig($config)
             }
         }
     }
+    // $username = $config['admin_user'];
+    // $password = $config['admin_pass'];
 
-    $status = new StatusMessages();
     if (isset($_POST['UpdateAdminPassword'])) {
         if (password_verify($_POST['oldpass'], $password)) {
             if (strlen($_POST['newpass']) < 1 && $_POST['newpass'] != ' ') {
@@ -46,9 +44,7 @@ function DisplayAuthConfig($config)
 
                     if (file_put_contents(RASPI_ADMIN_DETAILS, trim($new_content))) {
                         $status->addMessage('Password updated');
-                        echo '<script type="text/javascript">';
-                        echo 'window.location.href = "/"';
-                        echo '</script>';
+                        $auth->logout();
                     } else {
                         $status->addMessage('Failed to update password', 'danger');
                     }
@@ -59,7 +55,9 @@ function DisplayAuthConfig($config)
         }
     } else if (isset($_POST['UpdateAdminSettings'])) {
         saveAuthConfig($status, $config);
-        $config = getConfig();
+        $config = $auth->getAuthConfig();
+    } elseif (isset($_POST['logout'])) {
+        $auth->logout();
     }
 
     echo renderTemplate("admin", compact("status", "username", "config"));

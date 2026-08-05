@@ -1,6 +1,5 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 /**
@@ -9,36 +8,28 @@ require_once 'config.php';
 function DisplayDHCPConfig()
 {
     $model = getModel();
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['savedhcpdsettings']) || isset($_POST['applydhcpdsettings'])) {
             saveDHCPConfig($status);
             
             if (isset($_POST['applydhcpdsettings'])) {
-                //exec('sudo /bin/systemctl restart dnsmasq.service', $dnsmasq, $return);
-                
-                   exec('sudo /etc/raspap/hostapd/servicestart.sh --interface br0 --seconds 3', $return); 
-                if ($model == 'EG324L') {
-                   exec('/etc/init.d/S80dnsmasq restart; sleep 1; /etc/init.d/S80dhcpcd restart', $return); 
+                    exec('sudo ip addr flush dev br0'); // clear ip caches
+                    exec('sudo /etc/raspap/hostapd/servicestart.sh --interface br0 --seconds 3', $return);
+                if (model_category('buildroot')) {
+                    exec('/etc/init.d/S80dnsmasq restart; sleep 1; /etc/init.d/S80dhcpcd restart', $return);
                 }
-                
-                $status->addMessage($return, 'info');
             }
         }
     }
 
-    // foreach ($return as $line) {
-    //     $status->addMessage($line, 'info');
-    // }
     exec('pidof dnsmasq | wc -l', $dnsmasq);
     $dnsmasq_state = ($dnsmasq[0] > 0);
 
     getWifiInterface();
-    $ap_iface = $_SESSION['ap_interface'];
+    $ap_iface = "br0";
     $serviceStatus = $dnsmasq_state ? 'up' : 'down';
-    exec('cat '. RASPI_DNSMASQ_PREFIX.'raspap.conf', $return);
-    $conf = ParseConfig($return);
     exec('cat '. RASPI_DNSMASQ_PREFIX.$ap_iface.'.conf', $return);
     $conf = array_merge(ParseConfig($return));
     $hosts = array();
@@ -56,7 +47,7 @@ function DisplayDHCPConfig()
     if ($mac_conf[0] != '') {
         $lan_mac = $mac_conf[0];
     } else {
-        $lan_mac = exec('cat /sys/class/net/br0/address');
+        $lan_mac = file_get_contents('/sys/class/net/br0/address');
     }
 
     $interfaces = ['br0'];
@@ -89,7 +80,7 @@ function saveDHCPConfig($status)
     // handle disable dhcp option
     if (!isset($_POST['dhcp-iface']) && file_exists(RASPI_DNSMASQ_PREFIX.$iface.'.conf')) {
         // remove dhcp + dnsmasq configs for selected interface
-        $return = removeDHCPConfig($iface,$status);
+        //$return = removeDHCPConfig($iface,$status);
         $return = removeDnsmasqConfig($iface,$status);
     } else {
         $errors = validateDHCPInput();
@@ -123,6 +114,7 @@ function saveDHCPConfig($status)
  */
 function validateDHCPInput()
 {
+    $errors = '';
     define('IFNAMSIZ', 16);
     $iface = $_POST['interface'];
     if (!preg_match('/^[a-zA-Z0-9]+$/', $iface)
@@ -192,14 +184,17 @@ function updateDnsmasqConfig($iface,$status)
     $config .= $_POST['RangeLeaseTimeUnits'].PHP_EOL;
     //  Static leases
     $staticLeases = array();
-    for ($i=0; $i < count($_POST['static_leases']['mac']); $i++) {
-        $mac = trim($_POST['static_leases']['mac'][$i]);
-        $ip  = trim($_POST['static_leases']['ip'][$i]);
-        $comment  = trim($_POST['static_leases']['comment'][$i]);
-        if ($mac != '' && $ip != '') {
-            $staticLeases[] = array('mac' => $mac, 'ip' => $ip, 'comment' => $comment);
+    if (isset($_POST["static_leases"]["mac"])) {
+        for ($i=0; $i < count($_POST['static_leases']['mac']); $i++) {
+            $mac = trim($_POST['static_leases']['mac'][$i]);
+            $ip  = trim($_POST['static_leases']['ip'][$i]);
+            $comment  = trim($_POST['static_leases']['comment'][$i]);
+            if ($mac != '' && $ip != '') {
+                $staticLeases[] = array('mac' => $mac, 'ip' => $ip, 'comment' => $comment);
+            }
         }
     }
+    
     //  Sort ascending by IPs
     usort($staticLeases, 'compareIPs');
     //  Update config
@@ -212,9 +207,13 @@ function updateDnsmasqConfig($iface,$status)
     if ($_POST['no-resolv'] == '1') {
         $config .= 'no-resolv'.PHP_EOL;
     }
-    foreach ($_POST['server'] as $server) {
-        $config .= "server=$server".PHP_EOL;
+
+    if (isset($_POST['server'])) {
+        foreach ($_POST['server'] as $server) {
+            $config .= "server=$server".PHP_EOL;
+        }
     }
+    
     if ($_POST['DNS1']) {
         $config .= 'dhcp-option=6,' . $_POST['DNS1'];
         if ($_POST['DNS2']) {
@@ -225,9 +224,9 @@ function updateDnsmasqConfig($iface,$status)
     file_put_contents('/tmp/dnsmasqdata', $config);
     $msg = file_exists(RASPI_DNSMASQ_PREFIX.$iface.'.conf') ? 'updated' : 'added';
     system('sudo cp /tmp/dnsmasqdata '.RASPI_DNSMASQ_PREFIX.$iface.'.conf', $result);
-    if ($result == 0) {
-        $status->addMessage('Dnsmasq configuration for '.$iface.' '.$msg.'.', 'success');
-    }
+    // if ($result == 0) {
+    //     $status->addMessage('Dnsmasq configuration for '.$iface.' '.$msg.'.', 'success');
+    // }
 
     // write default 090_raspap.conf
     $config = '# RaspAP default config'.PHP_EOL;
@@ -261,13 +260,14 @@ function updateDHCPConfig($iface,$status)
     if (isset($_POST['StaticIP'])) {
         $mask = ($_POST['SubnetMask'] !== '' && $_POST['SubnetMask'] !== '0.0.0.0') ? '/'.mask2cidr($_POST['SubnetMask']) : null;
         $cfg[] = 'static ip_address='.$_POST['StaticIP'].$mask;
+        exec('sudo /usr/local/bin/uci set network.lan.ip='.$_POST['StaticIP']);
+        exec('sudo /usr/local/bin/uci set network.lan.netmask='.$_POST['SubnetMask']);
     }
     if (isset($_POST['DefaultGateway'])) {
       $cfg[] = 'static routers='.$_POST['DefaultGateway'];
     }
     if (filter_var($_POST['lan_mac'], FILTER_VALIDATE_MAC)) {
         exec('sudo /usr/local/bin/uci set network.lan.mac=' . $_POST['lan_mac']);
-        exec('sudo /usr/local/bin/uci commit network');
     }
     if ($_POST['DNS1'] !== '' || $_POST['DNS2'] !== '') {
         $cfg[] = 'static domain_name_server='.$_POST['DNS1'].' '.$_POST['DNS2'];
@@ -283,15 +283,16 @@ function updateDHCPConfig($iface,$status)
         $cfg[] = PHP_EOL;
         $cfg = join(PHP_EOL, $cfg);
         $dhcp_cfg .= $cfg;
-        $status->addMessage('DHCP configuration for '.$iface.' added.', 'success');
+        $status->addMessage('Configuration added.', 'success');
     } else {
         $cfg = join(PHP_EOL, $cfg);
         $dhcp_cfg = preg_replace('/^#\sRaspAP\s'.$iface.'\s.*?(?=\s*^\s*$)/ms', $cfg, $dhcp_cfg, 1);
-        $status->addMessage('DHCP configuration for '.$iface.' updated.', 'success');
+        $status->addMessage('Configuration updated.', 'success');
     }
     file_put_contents('/tmp/dhcpddata', $dhcp_cfg);
     system('sudo cp /tmp/dhcpddata '.RASPI_DHCPCD_CONFIG, $result);
-
+    exec('sudo /usr/local/bin/uci commit network');
+    
     return $result;
 }
 

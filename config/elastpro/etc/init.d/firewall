@@ -1,0 +1,46 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          firewall
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description:
+# Description:
+### END INIT INFO
+
+PROG=/usr/sbin/efw
+
+do_start()
+{
+    $PROG start
+}
+
+do_stop()
+{
+    $PROG stop
+}
+
+do_restart()
+{
+    $PROG restart
+}
+
+case "$1" in
+  start)
+	do_start
+	;;
+  stop)
+	do_stop
+	;;
+  restart|force-reload)
+	do_restart
+	;;
+  *)
+	echo "Usage: $SCRIPTNAME {start|stop|restart}" >&2
+	exit 3
+	;;
+esac
+
+:

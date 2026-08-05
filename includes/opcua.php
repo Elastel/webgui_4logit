@@ -1,31 +1,21 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayOpcua()
 {   
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
-        if (isset($_POST['savesettings']) || isset($_POST['applysettings'])) {
+        if (isset($_POST['saveopcuasettings']) || isset($_POST['applyopcuasettings'])) {
             $ret = saveOpcuaConfig($status);
             if ($ret == false) {
                 $status->addMessage('Error data', 'danger');
             } else {
-                if (isset($_POST['applysettings'])) {
-                    exec('sudo /etc/init.d/dct restart >/dev/null'); 
+                if (isset($_POST['applyopcuasettings'])) {
+                    exec('sudo /etc/init.d/dct restart >/dev/null');
+                    $status->addMessage('Configuration applied.', 'success');
                 }
-            }
-        }
-    }
-
-    if ( isset($_POST['upload']) ) {
-        if (strlen($_FILES['upload_file']['name']) > 0) {
-            if (is_uploaded_file($_FILES['upload_file']['tmp_name'])) {
-                save_import_file('opcuaserv', $status, $_FILES['upload_file']);
-            } else {
-                $status->addMessage('fail to upload file', 'danger');
             }
         }
     }
@@ -45,7 +35,7 @@ function saveFileUpload($status, $file)
             throw new RuntimeException('Invalid parameters');
         }
 
-        $upload = \RaspAP\Uploader\Upload::factory('opcua', $tmp_destdir);
+        $upload = \ElastPro\Uploader\FileUpload::factory('opcua', $tmp_destdir);
         $upload->set_max_file_size(64*KB);
         $upload->set_allowed_mime_types(array('text/plain', 'application/octet-stream'));
         $upload->file($file);
@@ -82,48 +72,10 @@ function saveFileUpload($status, $file)
     }
 }
 
-function saveOpcuaServerNodes()
-{
-    $data = $_POST['table_data'];
-    $arr = json_decode($data, true);
-    $i = 0;
-
-    exec("sudo /usr/sbin/uci_get_count dct opcuaserv", $count);
-
-    if ($count[0] == null || strlen($count[0]) <= 0) {
-        $count[0] = 0;
-    }
-
-    foreach ($arr as $list=>$things) {
-        if (is_array($things)) {
-            exec("sudo /usr/local/bin/uci delete dct.@opcuaserv[$i]");
-            exec("sudo /usr/local/bin/uci add dct opcuaserv");
-            foreach ($things as $key=>$val) {
-                if ($key == "enabled") {
-                    if ($val == "true") {
-                        exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key=1");
-                    } else {
-                        exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key=0");
-                    }
-                } else {
-                    exec("sudo /usr/local/bin/uci set dct.@opcuaserv[$i].$key='$val'");
-                }  
-            }
-        }
-        $i++;
-    }
-
-    if (number_format($count[0]) > $i) {
-        for ($j = $i; $j < number_format($count[0]); $j++) {
-            exec("sudo /usr/local/bin/uci delete dct.@opcuaserv[$i]");
-        }
-    }
-}
-
 function saveOpcuaConfig($status)
 {
-    exec("sudo /usr/local/bin/uci set dct.opcua.enabled=" . $_POST['enabled']);
-    if ($_POST['enabled'] == "1") {
+    exec("sudo /usr/local/bin/uci set dct.opcua.enabled=" . $_POST['opcua_enabled']);
+    if ($_POST['opcua_enabled'] == "1") {
         exec("sudo /usr/local/bin/uci set dct.opcua.port=" .$_POST['port']);
         exec("sudo /usr/local/bin/uci set dct.opcua.anonymous=" .$_POST['anonymous']);
         if ($_POST['anonymous'] != "1") {
@@ -184,9 +136,11 @@ function saveOpcuaConfig($status)
             }
         }
 
-        saveOpcuaServerNodes();
+        $data = $_POST['table_data'];
+        file_put_contents(ELASTEL_DCT_CONFIG_JSON, $data);
+        exec('sudo /usr/sbin/set_config ' . ELASTEL_DCT_CONFIG_JSON . ' dct opcuaserv');
     }
-    exec("sudo /usr/local/bin/uci commit dct");
+    exec("sudo uci commit dct");
 
     if ($_POST['enabled'] == "1") {
         if ($_POST['port'] == NULL || (int)($_POST['port']) > 65535 || (int)($_POST['device_id']) > 65535) {
@@ -194,7 +148,7 @@ function saveOpcuaConfig($status)
         }
     }
     
-    $status->addMessage('OPC UA configuration updated ', 'success');
+    $status->addMessage('Configuration updated.', 'success');
     return true;
 }
 

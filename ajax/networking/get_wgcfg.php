@@ -1,6 +1,7 @@
 <?php
 
-require '../../includes/csrf.php';
+require_once '../../includes/autoload.php';
+require_once '../../includes/CSRF.php';
 require_once '../../includes/config.php';
 
 $type = $_GET['type'];
@@ -35,8 +36,9 @@ if (isset($type)) {
 
         echo json_encode($wgdata); 
     } else if ($type == "download") {
-        exec('sudo cat '. RASPI_WIREGUARD_PATH.'client.conf', $return);
-        echo implode(PHP_EOL,$return);
+        $file = RASPI_WIREGUARD_PATH . 'client.conf';
+        $return = file_exists($file) ? file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+        echo implode(PHP_EOL, $return);
     }  
 }
 

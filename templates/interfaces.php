@@ -1,30 +1,13 @@
-<?php ob_start() ?>
-  <?php if (!RASPI_MONITOR_ENABLED) : ?>
-      <div class="cbi-page-actions">
-        <input type="submit" class="btn btn-outline btn-primary" value="<?php echo _("Save settings"); ?>" name="saveinterfacesettings" />
-        <input type="submit" class="btn btn-success" value="<?php echo _("Apply settings"); $msg=_("Restarting dct"); ?>" data-toggle="modal" data-target="#hostapdModal" name="applyinterfacesettings" />
-      </div>
-  <?php endif ?>
-  <!-- Modal -->
-  <div class="modal fade" id="hostapdModal" tabindex="-1" role="dialog" aria-labelledby="ModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-title" id="ModalLabel"><i class="fas fa-sync-alt mr-2"></i><?php echo $msg ?></div>
-        </div>
-        <div class="modal-body">
-          <div class="col-md-12 mb-3 mt-1"><?php echo _("Executing dct start") ?>...</div>
-          <div class="progress" style="height: 20px;">
-            <div class="progress-bar bg-info" role="progressbar" id="progressBar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="9"></div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline btn-primary" data-dismiss="modal"><?php echo _("Close"); ?></button>
-        </div>
-      </div>
-    </div>
-  </div>
-<?php $buttons = ob_get_clean(); ob_end_clean() ?>
+<?php 
+  ob_start();
+  if (!RASPI_MONITOR_ENABLED) :
+    BtnSaveApplyCustom('saveinterfacesettings', 'applyinterfacesettings');
+  endif;
+  $msg = _('Restarting dct');
+  page_progressbar($msg, _("Executing dct start"));
+  $buttons = ob_get_clean(); 
+  ob_end_clean();
+?>
 
 <div class="row">
   <div class="col-lg-12">
@@ -38,16 +21,19 @@
       </div><!-- ./card-header -->
       <div class="card-body">
           <?php $status->showMessages(); ?>
-          <form method="POST" action="interfaces_conf" role="form">
-          <?php echo CSRFTokenFieldTag() ?>
+          <form role="form" action="interfaces_conf" enctype="multipart/form-data" method="POST">
+          <?php echo \ElastPro\Tokens\CSRF::hiddenField(); ?>
 
           <?php if ($model != "ElastBox400") { ?>
           <div class="cbi-section">
-            <h4>Serial Port Setting</h4>
+            <h4><?php echo _("Serial Port Setting"); ?></h4>
             <ul class="nav nav-tabs">
-              <?php if ($model == "EG500" || $model == "EG410") { ?>
+              <?php if ($model == "EG500" || $model == "EG410" || $model == "EG510") { ?>
                 <li role="presentation" class="nav-item"><a class="nav-link active" href="#com1" aria-controls="com1" role="tab" data-toggle="tab"><?php echo _("COM1/RS485"); ?></a></li>
                 <li role="presentation" class="nav-item"><a class="nav-link" href="#com2" aria-controls="com2" role="tab" data-toggle="tab"><?php echo _("COM2/RS232"); ?></a></li>
+              <?php } else if ($model == "EC212") { ?>
+                <li role="presentation" class="nav-item"><a class="nav-link active" href="#com1" aria-controls="com1" role="tab" data-toggle="tab"><?php echo _("COM1/RS485/RS232"); ?></a></li>
+                <li role="presentation" class="nav-item"><a class="nav-link" href="#com2" aria-controls="com2" role="tab" data-toggle="tab"><?php echo _("COM2/RS485/RS232"); ?></a></li>
               <?php } else { ?>
                 <li role="presentation" class="nav-item"><a class="nav-link active" href="#com1" aria-controls="com1" role="tab" data-toggle="tab"><?php echo _("COM1/RS485"); ?></a></li>
                 <li role="presentation" class="nav-item"><a class="nav-link" href="#com2" aria-controls="com2" role="tab" data-toggle="tab"><?php echo _("COM2/RS485"); ?></a></li>
@@ -57,30 +43,30 @@
             </ul>
             <!-- Tab panes -->
             <div class="tab-content">
-                <?php page_interface_com(1, $com_proto);?>
-                <?php page_interface_com(2, $com_proto);?>
-                <?php page_interface_com(3, $com_proto);?>
-                <?php page_interface_com(4, $com_proto);?>
+                <?php page_interface_com(1);?>
+                <?php page_interface_com(2);?>
+                <?php page_interface_com(3);?>
+                <?php page_interface_com(4);?>
             </div><!-- /.tab-content -->
           </div>
           <?php } ?>
 
           <div class="cbi-section">
-            <h4>TCP Server Setting</h4>
+            <h4><?php echo _("Network Node Setting"); ?></h4>
             <ul class="nav nav-tabs">
-              <li role="presentation" class="nav-item"><a class="nav-link active" href="#tcp1" aria-controls="tcp1" role="tab" data-toggle="tab"><?php echo _("TCP Server1"); ?></a></li>
-              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp2" aria-controls="tcp2" role="tab" data-toggle="tab"><?php echo _("TCP Server2"); ?></a></li>
-              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp3" aria-controls="tcp3" role="tab" data-toggle="tab"><?php echo _("TCP Server3"); ?></a></li>
-              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp4" aria-controls="tcp4" role="tab" data-toggle="tab"><?php echo _("TCP Server4"); ?></a></li>
-              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp5" aria-controls="tcp5" role="tab" data-toggle="tab"><?php echo _("TCP Server5"); ?></a></li>
+              <li role="presentation" class="nav-item"><a class="nav-link active" href="#tcp1" aria-controls="tcp1" role="tab" data-toggle="tab"><?php echo _("Network Node")."1"; ?></a></li>
+              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp2" aria-controls="tcp2" role="tab" data-toggle="tab"><?php echo _("Network Node")."2"; ?></a></li>
+              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp3" aria-controls="tcp3" role="tab" data-toggle="tab"><?php echo _("Network Node")."3"; ?></a></li>
+              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp4" aria-controls="tcp4" role="tab" data-toggle="tab"><?php echo _("Network Node")."4"; ?></a></li>
+              <li role="presentation" class="nav-item"><a class="nav-link" href="#tcp5" aria-controls="tcp5" role="tab" data-toggle="tab"><?php echo _("Network Node")."5"; ?></a></li>
             </ul>
             <!-- Tab panes -->
             <div class="tab-content">
-                <?php page_interface_tcp(1, $tcp_proto);?>
-                <?php page_interface_tcp(2, $tcp_proto);?>
-                <?php page_interface_tcp(3, $tcp_proto);?>
-                <?php page_interface_tcp(4, $tcp_proto);?>
-                <?php page_interface_tcp(5, $tcp_proto);?>
+                <?php page_interface_tcp(1);?>
+                <?php page_interface_tcp(2);?>
+                <?php page_interface_tcp(3);?>
+                <?php page_interface_tcp(4);?>
+                <?php page_interface_tcp(5);?>
             </div><!-- /.tab-content -->
           </div>
           <?php echo $buttons ?>

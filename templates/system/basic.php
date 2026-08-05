@@ -1,8 +1,3 @@
-<?php
-
-include('includes/sysstats.php');
-
-?>
 <!-- basic tab -->
 <div role="tabpanel" class="tab-pane active" id="basic">
   <div class="row">
@@ -11,13 +6,16 @@ include('includes/sysstats.php');
         <div class="row ml-1">
           <div class="col-sm">
             <div class="row mb-1">
-              <div class="info-item col-xs-3"><?php echo _("Hostname"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars($cur_hostname, ENT_QUOTES); ?></div>
+              <div class="info-item col-xs-3" style="width:5rem"><?php echo _("Hostname"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars($cur_hostname, ENT_QUOTES); ?></div>
             </div>
             <div class="row mb-1">
-              <div class="info-item col-xs-3"><?php echo _("Pi Revision"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars(RPiVersion(), ENT_QUOTES); ?></div>
+              <div class="info-item col-xs-3" style="width:5rem"><?php echo _("Revision"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars(get_revison(), ENT_QUOTES); ?></div>
             </div>
             <div class="row mb-1">
-              <div class="info-item col-xs-3"><?php echo _("Uptime"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars($uptime, ENT_QUOTES); ?></div>
+              <div class="info-item col-xs-3" style="width:5rem"><?php echo _("Uptime"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars($uptime, ENT_QUOTES); ?></div>
+            </div>
+            <div class="row mb-1">
+              <div class="info-item col-xs-3" style="width:5rem"><?php echo _("SN"); ?></div><div class="info-value col-xs-3"><?php echo htmlspecialchars($sn, ENT_QUOTES); ?></div>
             </div>
           </div>
         </div>
@@ -44,7 +42,7 @@ include('includes/sysstats.php');
       </div>
 
       <form action="system_info" method="POST">
-        <?php echo CSRFTokenFieldTag() ?>
+        <?php echo \ElastPro\Tokens\CSRF::hiddenField(); ?>
         <?php if (!RASPI_MONITOR_ENABLED) : ?>
             <input type="submit" class="btn btn-warning" name="system_reboot"   value="<?php echo _("Reboot"); ?>" />
             <input type="submit" class="btn btn-warning" name="system_shutdown" value="<?php echo _("Shutdown"); ?>" />

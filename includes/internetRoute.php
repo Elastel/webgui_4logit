@@ -10,61 +10,47 @@ function getRouteInfo($checkAccess)
 {
     $model = getModel();
     $rInfo = array();
-    // get all default routes
-    exec('ip route list |  sed -rn "s/default via (([0-9]{1,3}\.){3}[0-9]{1,3}).*dev (\w*).*src (([0-9]{1,3}\.){3}[0-9]{1,3}).*/\3 \4 \1/p"', $routes);
-    // $devpat = array("tun", "ppp");  // routing in case of VPN and PPP connection are different
-    // foreach ($devpat as $pat) {
-    //    exec('ip route list |  grep -oP "'.$pat.'[0-9]" | sort -u', $devs);
-    // }
-    
-    // if (!empty($devs)) {
-    //     foreach ($devs as $dev) {
-    //         unset($gateway);
-    //         unset($ipadd);
-    //         exec('ip route list |  sed -rn "s/^.*via (([0-9]{1,3}\.){3}[0-9]{1,3}) dev "' . $dev . '".*$/\1/p" | head -n 1', $gateway);
-    //         if (empty($gateway)) {
-    //             exec('ip route list | sed -rn "s/(([0-9]{1,3}\.){3}[0-9]{1,3}).*dev.*"' . $dev . '".*scope link src.*/\1/p"', $gateway);
-    //         }
-    //         exec('ifconfig -a | grep -i ' . $dev . ' -A 1 | grep -oP "(?<=inet )([0-9]{1,3}\.){3}[0-9]{1,3}"', $ipadd);
-    //         if (!empty($gateway) && !empty($ipadd)) {
-    //             $routes[]="$dev $ipadd[0] $gateway[0]";
-    //         }
-    //     }
-    // }
+    exec('ip route list', $routeLines);
 
-    if (!empty($routes)) {
-        foreach ($routes as $i => $route) {
-            $prop = explode(' ', $route);
-            $rInfo[$i]["interface"] = $prop[0];
-            $rInfo[$i]["ip-address"] = $prop[1];
-            $rInfo[$i]["gateway"] = $prop[2];
-            if ($model != "EG324L") {
-                exec('ifconfig ' . $prop[0] . ' | grep -oP "(?<=netmask )([0-9]{1,3}\.){3}[0-9]{1,3}"', $netmask);
-            } else {
-                exec('ifconfig ' . $prop[0] . ' | grep -Eo "([0-9]+[.]){3}[0-9]+" | grep "255.255"', $netmask);
+    if (!empty($routeLines)) {
+        $i = 0;
+        foreach ($routeLines as $line) {
+            if (preg_match('/^default via ([0-9.]+).*dev (\w+)(?:.*src ([0-9.]+))?(?:.*metric (\d+))?/i', $line, $m)) {
+                $iface = $m[2];
+                $srcip = isset($m[3]) ? $m[3] : '';
+                $gateway = $m[1];
+                $metric = '';
+                if (isset($m[4]) && $m[4] !== '') {
+                    $metric = $m[4];
+                } else if (preg_match('/metric (\d+)/', $line, $mm)) {
+                    $metric = $mm[1];
+                }
+
+                if (model_category('no_buildroot')) {
+                    exec('ifconfig ' . $iface . ' | grep -oP "(?<=netmask )([0-9]{1,3}\.){3}[0-9]{1,3}"', $netmask);
+                } else {
+                    exec('ifconfig ' . $iface . ' | grep -Eo "([0-9]+[.]){3}[0-9]+" | grep "255.255"', $netmask);
+                }
+                exec('cat /sys/class/net/' . $iface . '/address', $mac);
+
+                $rInfo[$i]["interface"] = $iface;
+                if ($srcip == '') {
+                    exec('ip addr show ' . $iface . ' | grep -oP "(?<=inet )([0-9]{1,3}\.){3}[0-9]{1,3}"', $tmpSrcIp);
+                    $srcip = isset($tmpSrcIp[0]) ? $tmpSrcIp[0] : '';
+                }
+                $rInfo[$i]["ip-address"] = $srcip;
+                $rInfo[$i]["gateway"] = $gateway;
+                $rInfo[$i]["netmask"] = isset($netmask[0]) ? $netmask[0] : '';
+                $rInfo[$i]["mac"] = isset($mac[0]) ? $mac[0] : '';
+                $rInfo[$i]["metric"] = $metric;
+                $i++;
+                unset($tmpSrcIp, $netmask, $mac);
             }
-            
-            $rInfo[$i]["netmask"] = $netmask[0];
-            exec('cat /sys/class/net/' . $prop[0] . '/address', $mac);
-            $rInfo[$i]["mac"] = $mac[0];
-            
-            // resolve the name of the gateway (if possible)
-            // unset($host);
-            // exec('host ' . $prop[2] . ' | sed -rn "s/.*domain name pointer (.*)\./\1/p" | head -n 1', $host);
-            // $rInfo[$i]["gw-name"] = empty($host) ? "*" : $host[0];
-            // if (isset($checkAccess) && $checkAccess) {
-            //     // check internet connectivity w/ and w/o DNS resolution
-            //     unset($okip);
-            //     exec('ping -W1 -c 1 -I ' . $prop[0] . ' ' . RASPI_ACCESS_CHECK_IP . ' |  sed -rn "s/.*icmp_seq=1.*time=.*/OK/p"', $okip);
-            //     $rInfo[$i]["access-ip"] = empty($okip) ? false : true;
-            //     unset($okdns);
-            //     exec('ping -W1 -c 1 -I ' . $prop[0] . ' ' . RASPI_ACCESS_CHECK_DNS . ' |  sed -rn "s/.*icmp_seq=1.*time=.*/OK/p"', $okdns);
-            //     $rInfo[$i]["access-dns"] = empty($okdns) ? false : true;
-            // }
         }
-    } else {
+    }
+
+    if (empty($rInfo)) {
         $rInfo = array("error" => "No route to the internet found");
     }
     return $rInfo;
 }
-

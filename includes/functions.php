@@ -52,11 +52,15 @@ function mask2cidr($mask)
  */
 function cidr2mask($cidr)
 {
-    $ta = substr ($cidr, strpos ($cidr, '/') + 1) * 1;
-    $netmask = str_split (str_pad (str_pad ('', $ta, '1'), 32, '0'), 8);
-    foreach ($netmask as &$element)
-      $element = bindec ($element);
-    return join ('.', $netmask);
+    $ipParts = explode('/', $cidr);
+    $ip = $ipParts[0];
+    $prefixLength = $ipParts[1];
+
+    $ipLong = ip2long($ip);
+    $netmaskLong = bindec(str_pad(str_repeat('1', $prefixLength), 32, '0'));
+    $netmask = long2ip(intval($netmaskLong));
+
+    return $netmask;
 }
 
 /**
@@ -68,13 +72,30 @@ function cidr2mask($cidr)
  */
 function removeDHCPConfig($iface,$status)
 {
+    $model = getModel();
     $orgin_str = file_get_contents(RASPI_DHCPCD_CONFIG);
     if ($iface == "eth0") {
-        $count = strpos($orgin_str, "denyinterfaces");
+        exec("sudo /usr/local/bin/uci get wifi.wifi_client.enabled", $tmp);
+        $enablewificlient = $tmp[0];
+
         if ($_POST['wan-multi'] == '1') {
-            $dhcp_cfg = substr_replace($orgin_str, 'denyinterfaces eth1 wlan0 eth0' . PHP_EOL, number_format($count), 31);
+            if ($enablewificlient == '1') {
+                $new_deny = ($model == 'EG410') ? 'denyinterfaces eth0' : 'denyinterfaces eth1 eth0';
+            } else {
+                $new_deny = ($model == 'EG410') ? 'denyinterfaces eth0 wlan0' : 'denyinterfaces eth1 eth0 wlan0';
+            }
         } else {
-            $dhcp_cfg = substr_replace($orgin_str, 'denyinterfaces eth1 wlan0     ' . PHP_EOL, number_format($count), 31);
+            if ($enablewificlient == '1') {
+                $new_deny = ($model == 'EG410') ? 'denyinterfaces ' : 'denyinterfaces eth1';
+            } else {
+                $new_deny = ($model == 'EG410') ? 'denyinterfaces wlan0' : 'denyinterfaces eth1 wlan0';
+            }
+        }
+
+        if (preg_match('/^denyinterfaces.*$/m', $orgin_str)) {
+            $dhcp_cfg = preg_replace('/^denyinterfaces.*$/m', $new_deny, $orgin_str, 1);
+        } else {
+            $dhcp_cfg = rtrim($orgin_str) . PHP_EOL . $new_deny . PHP_EOL;
         }
     } else {
         $dhcp_cfg = $orgin_str;
@@ -294,79 +315,6 @@ function filter_comments($var)
 }
 
 /**
- * Saves a CSRF token in the session
- */
-function ensureCSRFSessionToken()
-{
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-}
-
-/**
- * Add CSRF Token to form
- */
-function CSRFTokenFieldTag()
-{
-    $token = htmlspecialchars($_SESSION['csrf_token']);
-    return '<input type="hidden" name="csrf_token" value="' . $token . '">';
-}
-
-/**
- * Retuns a CSRF meta tag (for use with xhr, for example)
- */
-function CSRFMetaTag()
-{
-    $token = htmlspecialchars($_SESSION['csrf_token']);
-    return '<meta name="csrf_token" content="' . $token . '">';
-}
-
-/**
- * Validate CSRF Token
- */
-function CSRFValidate()
-{
-    $post_token   = $_POST['csrf_token'];
-    $header_token = $_SERVER['HTTP_X_CSRF_TOKEN'];
-
-    if (empty($post_token) && empty($header_token)) {
-        return false;
-    }
-
-    $request_token = $post_token;
-    if (empty($post_token)) {
-        $request_token = $header_token;
-    }
-
-    if (hash_equals($_SESSION['csrf_token'], $request_token)) {
-        return true;
-    } else {
-        error_log('CSRF violation');
-        return false;
-    }
-}
-
-/**
- * Should the request be CSRF-validated?
- */
-function csrfValidateRequest()
-{
-    $request_method = strtolower($_SERVER['REQUEST_METHOD']);
-    return in_array($request_method, [ "post", "put", "patch", "delete" ]);
-}
-
-/**
- * Handle invalid CSRF
- */
-function handleInvalidCSRFToken()
-{
-    header('HTTP/1.1 500 Internal Server Error');
-    header('Content-Type: text/plain');
-    echo 'Invalid CSRF token';
-    exit;
-}
-
-/**
  * Test whether array is associative
  */
 function isAssoc($arr)
@@ -410,32 +358,6 @@ function SelectorOptions($name, $options, $selected = null, $id = null, $event =
     echo '</select>' , PHP_EOL;
 }
 
-function SelectorOptionsCustom($name, $options, $selected = null, $id = null, $event = null, $disabled = null)
-{
-    echo '<select class="cbi-input-select" name="'.htmlspecialchars($name, ENT_QUOTES).'"';
-    if (isset($id)) {
-        echo ' id="' . htmlspecialchars($id, ENT_QUOTES) .'"';
-    }
-    if (isset($event)) {
-        echo ' onChange="' . htmlspecialchars($event, ENT_QUOTES).'()"';
-    }
-    echo '>' , PHP_EOL;
-    foreach ($options as $opt => $label) {
-        $select = '';
-        $key = isAssoc($options) ? $opt : $label;
-        if ($key == $selected) {
-            $select = ' selected="selected"';
-        }
-        if ($key == $disabled) {
-            $disabled = ' disabled';
-        }
-        echo '<option value="'.htmlspecialchars($key, ENT_QUOTES).'"'.$select.$disabled.'>'.
-            htmlspecialchars($label, ENT_QUOTES).'</option>' , PHP_EOL;
-    }
-
-    echo '</select>' , PHP_EOL;
-}
-
 /**
  *
  * @param  string $input
@@ -451,21 +373,33 @@ function GetDistString($input, $string, $offset, $separator)
 }
 
 /**
- *
- * @param  array $arrConfig
+ * Parses a configuration file
+ * Options and values are mapped with "=" characters
+ * Optional $wg flag is used for parsing WireGuard .conf files
+ * @param  array   $arrConfig
+ * @param  boolean $wg
  * @return $config
  */
-function ParseConfig($arrConfig)
+function ParseConfig($arrConfig, $wg = false)
 {
     $config = array();
     foreach ($arrConfig as $line) {
         $line = trim($line);
         if ($line == "" || $line[0] == "#") {
-            continue;
+            if ($wg) {
+                $config[$option] = null;
+                continue;
+            } else {
+                continue;
+            }
         }
 
-        list($option, $value) = array_map("trim", explode("=", $line, 2));
-
+        if (strpos($line, "=") !== false) {
+            list($option, $value) = array_map("trim", explode("=", $line, 2));
+        } else {
+            $option = $line;
+            $value = "";
+        }
         if (empty($config[$option])) {
             $config[$option] = $value ?: true;
         } else {
@@ -828,14 +762,244 @@ class validation
  */
 function get_public_ip()
 {
-    exec('wget https://ipinfo.io/ip -qO -', $public_ip);
+    exec('wget --timeout=5 --tries=1 https://ipinfo.io/ip -qO -', $public_ip);
     return $public_ip[0];
 }
 
-function getModel()
+function getFavicon($target, $hostname)
 {
-    exec('cat /etc/fw_model', $model);
-    return $model[0];
+    $name='';
+    if ($target != null && file_exists('/var/www/html/app/icons/'.$hostname.'_favicon.png')) {
+        $name = "app/icons/" . $hostname . "_favicon.png";
+    } else if ($target != null && strpos($target, "EC211") == false) {
+        return;
+    } else {
+        $name = "app/icons/favicon.png";
+    }
+
+    return $name;
+}
+
+function setLoginLogo($target, $hostname)
+{
+    $name='';
+    if ($target != null && (strpos($target, "IQEG") !== false || strpos($target, "IQEC") !== false)) {
+        $name = "Iqflow.png";
+        echo '<img src="app/img/'.$name.'" class="navbar-logo" alt="logo" class="img-fluid" style="width: 20rem;">';
+    } else if ($target != null && file_exists('/var/www/html/app/img/'.$hostname.'.php')) {
+        $name = $hostname . ".png";
+        echo '<img src="app/img/'.$name.'" class="navbar-logo" alt="logo" class="img-fluid" style="width: 20rem;">';
+    } else if ($target != null && file_exists('/var/www/html/app/img/'.$target.'.php')) {
+        $name = $target . ".png";
+        echo '<img src="app/img/'.$name.'" class="navbar-logo" alt="logo" class="img-fluid" style="width: 20rem;">';
+    } else if ($target != null && (strpos($target, "EMT") !== false)) {
+        $name = "emt.png";
+        echo '<img src="app/img/'.$name.'" class="navbar-logo" alt="logo" class="img-fluid" style="width: 20rem;">';
+    } else if (strpos($target, "&OEM") !== false) {
+        return;
+    } else {
+        $name = "elastel.png";
+        echo '<img src="app/img/'.$name.'" class="navbar-logo" class="img-fluid" style="max-width: 100px;">';
+        echo '<h2 class="login-brand">' . htmlspecialchars(RASPI_BRAND_TEXT) . '</h2>';
+    }
+}
+
+function setLoginGuide($target, $hostname)
+{
+    $url='';
+    if ($target != null && (strpos($target, "IQEG") !== false || strpos($target, "IQEC") !== false)) {
+        $url = "https://docs.iqflow.io/";
+    } else if (($target != null && (strpos($target, "EMT") !== false)) || strpos($target, "&OEM") !== false || strpos($target, "4logit") !== false ) {
+        return;
+    } else {
+        $url = "https://docs.elastel.com/";
+    }
+
+    echo '<a href="'.$url.'" class="mt-2 d-block text-decoration-none" target="_blank">
+           <i class="fas fa-book me-1"></i> '. _("User Guide") . '
+         </a>';
+}
+
+function setSidbarLogo($target, $hostname)
+{
+    $name='';
+    if ($target != null && (strpos($target, "IQEG") !== false || strpos($target, "IQEC") !== false)) {
+        $name = "Iqflow.php";
+        echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="70">';
+        return;
+    } else if ($target != null && file_exists('/var/www/html/app/img/'.$hostname.'.php')) {
+        $name = $hostname . ".php";
+    } else if ($target != null && file_exists('/var/www/html/app/img/'.$target.'.php')) {
+        $name = $target . ".php";
+        echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="70">';
+        return;
+    } else if (strpos($target, "&OEM") !== false) {
+        return;
+    } else if ($target != null && (strpos($target, "EMT") !== false)) {
+        $name = "emt.png";
+    } else {
+        $name = "elastel.php";
+    }
+
+    echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="50">';
+}
+
+function getSn()
+{
+    if (file_exists('/etc/sn')) {
+        return trim(file_get_contents('/etc/sn'));
+    } else {
+        return exec("cat /proc/cpuinfo | grep Serial | awk -F ':' '{print $2}'");
+    }
+}
+
+function getModel()
+{   
+    if (file_exists('/etc/fw_model')) {
+        return trim(file_get_contents('/etc/fw_model'));
+    } else {
+        return '';
+    }
+    
+}
+
+function getTarget()
+{
+    if (file_exists('/etc/target_model')) {
+        return trim(file_get_contents('/etc/target_model'));
+    } else {
+        return '';
+    }
+}
+
+function getSystemTime()
+{
+    return trim(shell_exec('date "+%Y-%m-%d %H:%M:%S" 2>/dev/null'));
+}
+
+function model_category($option)
+{
+    $model = getModel();
+    if ($option == 'HT' && ($model == 'EG324' || $model == 'EG324L' || $model == 'EC212' || $model == "EG324Pro")) {
+        return true;
+    } else if ($option == 'buildroot' && ($model == 'EG324L' || $model == 'EC212')) {
+        return true;
+    } else if ($option == 'no_buildroot' && $model != "EG324L" && $model != "EC212") {
+        return true;
+    } else if ($option == 'raspbian' && ($model == 'EG500' || $model == 'EG410' || $model == 'ElastBox400' || $model == 'EG510')) {
+        return true;
+    } else if ($option == 'debian11' && ($model == 'EG500' || $model == 'EG410' || $model == 'ElastBox400')) {
+        return true;
+    } else if ($option == 'debian12' && ($model == 'EG510')) {
+        return true;
+    } else if ($option == 'two_com' && ($model == 'EG500' || $model == 'EG410' || $model == 'EG510' || $model == 'EC212')) {
+        return true;
+    } else if ($option == 'four_com' && ($model == 'EG324' || $model == 'EG324Pro' || $model == 'EG324L')) {
+        return true;
+    }
+
+    return false;
+}
+
+function get_revison()
+{
+    $dev_model = getModel();
+    $target_model = getTarget();
+    // Lookup table from http://www.raspberrypi-spy.co.uk/2012/09/checking-your-raspberry-pi-board-version/
+    if ($dev_model != "EG324" && $dev_model != "EC212") {
+        $revisions = array(
+        '0002' => 'Model B Revision 1.0',
+        '0003' => 'Model B Revision 1.0 + ECN0001',
+        '0004' => 'Model B Revision 2.0 (256 MB)',
+        '0005' => 'Model B Revision 2.0 (256 MB)',
+        '0006' => 'Model B Revision 2.0 (256 MB)',
+        '0007' => 'Model A',
+        '0008' => 'Model A',
+        '0009' => 'Model A',
+        '000d' => 'Model B Revision 2.0 (512 MB)',
+        '000e' => 'Model B Revision 2.0 (512 MB)',
+        '000f' => 'Model B Revision 2.0 (512 MB)',
+        '0010' => 'Model B+',
+        '0013' => 'Model B+',
+        '0011' => 'Compute Module',
+        '0012' => 'Model A+',
+        'a01041' => 'a01041',
+        'a21041' => 'a21041',
+        '900092' => 'PiZero 1.2',
+        '900093' => 'PiZero 1.3',
+        '9000c1' => 'PiZero W',
+        'a02082' => 'Pi 3 Model B',
+        'a22082' => 'Pi 3 Model B',
+        'a32082' => 'Pi 3 Model B',
+        'a52082' => 'Pi 3 Model B',
+        'a020d3' => 'Pi 3 Model B+',
+        'a220a0' => 'Compute Module 3',
+        'a020a0' => 'Compute Module 3',
+        'a02100' => 'Compute Module 3+',
+        'a03111' => 'Model 4B Revision 1.1 (1 GB)',
+        'b03111' => 'Model 4B Revision 1.1 (2 GB)',
+        'c03111' => 'Model 4B Revision 1.1 (4 GB)'
+        );
+
+        if ($dev_model == 'EG324Pro') {
+            exec('lscpu | awk -F: \'/Model name/ {gsub(/^[ \t]+/,"",$2); print $2}\'', $tmp);
+            if (isset($tmp[0])) {
+                return $tmp[0];
+            } else {
+                return 'Unknown Device';
+            }
+        } else if ($target_model == 'EG600' || $dev_model == 'EG600') {
+            return 'ET3576';
+        } else {
+            $cpuinfo_array = '';
+            $cpuinfo_array = file('/proc/cpuinfo', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $rev = '';
+            foreach ($cpuinfo_array as $line) {
+                if (strpos($line, 'Revision') === 0) {
+                    $parts = explode(':', $line, 2);
+                    if (isset($parts[1])) {
+                        $rev = trim($parts[1]);
+                    }
+                    break;
+                }
+            }
+
+            if (array_key_exists($rev, $revisions)) {
+                return $revisions[$rev];
+            } else {
+                $model = trim(file_get_contents('/proc/device-tree/model'));
+                if (isset($model)) {
+                    return $model;
+                } else {
+                    return 'Unknown Device';
+                }
+            }
+        }
+    } else {
+        $cpuinfo_array = file('/proc/cpuinfo', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $rev = '';
+        foreach ($cpuinfo_array as $line) {
+            if (stripos($line, 'model name') === 0) {
+                $parts = explode(':', $line, 2);
+                if (isset($parts[1])) {
+                    $rev = trim($parts[1]);
+                    break;
+                }
+            }
+        }
+        if ($rev === '') {
+            foreach ($cpuinfo_array as $line) {
+                if (stripos($line, 'Processor') === 0) {
+                    $parts = explode(':', $line, 2);
+                    if (isset($parts[1])) {
+                        $rev = trim($parts[1]);
+                        break;
+                    }
+                }
+            }
+        }
+        return $rev;
+    }
 }
 
 function isBinExists($name)
@@ -848,58 +1012,250 @@ function isBinExists($name)
     }
 }
 
-function getPurview()
+function isRunning($name)
 {
-    $user = $_SERVER['PHP_AUTH_USER'] ?? "admin";
-    $purview = '32767';
-    $config = getConfig();
+    exec("pgrep -x $name", $output);
+    return !empty($output);
+}
 
-    foreach ($config as $key => $value) {
-        if (is_array($value)) {
-            if ($value['admin_user'] == $user) {
-                $purview = $value['purview'];
-                break;
+function isIoExistts()
+{
+    $model = getModel();
+    $adc_index_count = 0;
+    $di_index_count = 0;
+    $do_index_count = 0;
+    $com_count = 4;
+
+    switch ($model) {
+        case "EG500":
+            $adc_index_count += 3;
+            $di_index_count += 6;
+            $do_index_count += 6;
+            $com_count = 2;
+            break;
+        case "EG410":
+            $di_index_count += 2;
+            $do_index_count += 2;
+            $com_count = 2;
+            break;
+        case "EG510":
+            $di_index_count += 6;
+            $do_index_count += 6;
+            $com_count = 2;
+            break;
+    }
+
+    for ($i = 1; $i <= $com_count; $i++) {
+        unset($enabled);
+        exec("sudo uci get dct.com.enabled$i", $enabled);
+        if ($enabled[0] != '1') {
+            continue;
+        }
+        exec("sudo uci get dct.com.proto$i", $com_proto);
+        if ($com_proto[0] == '7') {
+            exec("sudo uci get dct.com.controller_model$i", $controller_model);
+
+            switch($controller_model[0]) {
+                case '0':
+                    $di_index_count += 2;
+                    $do_index_count += 2;
+                    break;
+                case '1':
+                    $di_index_count += 4;
+                    $do_index_count += 4;
+                    break;
+                case '2':
+                    $di_index_count += 8;
+                    $do_index_count += 8;
+                    break;
+                case '3':
+                    $adc_index_count += 8;
+                    break;
+            }
+         }
+
+        unset($com_proto);
+        unset($controller_model);
+    }
+
+    if ($adc_index_count > 0 || $di_index_count > 0 || $do_index_count > 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function isLteEnabled()
+{
+    $lte_enabled = false;
+    exec("sudo uci get system.system.enabled", $lte_enabled);
+    if ($lte_enabled[0] == '1') {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function get_serial_device_list()
+{
+    $comlist = array();
+    $model = getModel();
+
+    if ($model == "EG324") {
+        $comlist = array('/dev/ttyAMA0'=>'COM1', '/dev/ttyAMA1'=>'COM2', '/dev/ttyAMA2'=>'COM3', '/dev/ttyAMA3'=>'COM4');
+    } else if ($model == "EG324L" || $model == "EG324Pro") {
+        $comlist = array('/dev/ttyS1'=>'COM1', '/dev/ttyS2'=>'COM2', '/dev/ttyS3'=>'COM3', '/dev/ttyS4'=>'COM4');
+    } else if ($model == "EC212") {
+        $comlist = array('/dev/ttyS1'=>'COM1', '/dev/ttyS2'=>'COM2');
+    } else if ($model == "EG510") {
+        $comlist = array('/dev/ttyCH9344USB0'=>'COM1', '/dev/ttyCH9344USB1'=>'COM2');
+    } else {
+        $comlist = array('/dev/ttyACM0'=>'COM1', '/dev/ttyACM1'=>'COM2');
+    }
+
+    return $comlist;
+}
+
+function getBetweenStrings($src, $string)
+{
+    $tmp = strstr($src, $string);
+    $substring = substr($tmp, strlen($string));
+    $dest = strstr($substring, $string, true);
+
+    return $dest != null ? $dest : $tmp;
+}
+
+// Load non default JS/ECMAScript in footer
+function loadFooterScripts($extraFooterScripts)
+{
+    foreach ($extraFooterScripts as $script) {
+        echo '<script type="text/javascript" src="' , $script['src'] , '"';
+        if ($script['defer']) {
+            echo ' defer="defer"';
+        }
+        echo '></script>' , PHP_EOL;
+    }
+}
+
+/**
+ * Validate whether the given network interface exists on the system.
+ * This function retrieves all currently available network interfaces using the `ip link show` command
+ * and checks if the provided interface name is in the list.
+ */
+function validateInterface($interface)
+{
+    // Retrieve all available network interfaces
+    $valid_interfaces = shell_exec('ip -o link show | awk -F": " \'{print $2}\'');
+
+    // Convert to array (one interface per line)
+    $valid_interfaces = explode("\n", trim($valid_interfaces));
+
+    // Check if the provided interface exists in the list
+    return in_array($interface, $valid_interfaces, true);
+}
+
+function setMetricByIface($iface, $metric)
+{
+    $keyword = 'ElastPro';
+    $orgin_str = file_get_contents(RASPI_DHCPCD_CONFIG);
+    if (strpos($orgin_str, $keyword) == false) {
+        $keyword = 'RaspAP';
+    }
+    
+    $cfg[] = "# $keyword ".$iface.' configuration';
+    $cfg[] = 'interface '.$iface;
+
+    if ($_POST[$head.'Metric'] !== '') {
+      $cfg[] = 'metric '.$metric;
+    }
+
+    $dhcp_cfg = rtrim($orgin_str) . PHP_EOL;
+    
+    if (!preg_match('/^interface\s'.$iface.'$/m', $dhcp_cfg)) {
+        $cfg = join(PHP_EOL, $cfg) . PHP_EOL;
+        $dhcp_cfg .= $cfg;
+    } else {
+        $cfg = join(PHP_EOL, $cfg) . PHP_EOL;
+        $pattern = "/^#\s$keyword\s" . preg_quote($iface, '/') . "\sconfiguration.*?(?=^#\s$keyword\s|\z)/ms";
+        if (preg_match($pattern, $dhcp_cfg)) {
+            $dhcp_cfg = preg_replace($pattern, $cfg, $dhcp_cfg, 1);
+        }
+    }
+    file_put_contents('/tmp/dhcpddata', $dhcp_cfg);
+    system('sudo cp /tmp/dhcpddata '.RASPI_DHCPCD_CONFIG);
+}
+
+function get_default_route_metric($iface) {
+    $output = [];
+    exec("ip route show default dev " . escapeshellarg($iface), $output);
+
+    foreach ($output as $line) {
+        if (preg_match('/\bmetric\s+(\d+)/', $line, $matches)) {
+            return (int)$matches[1];
+        }
+    }
+
+    return 200;
+}
+
+function switchWifiMode($enabled)
+{
+    $model = getModel();
+    $dhcpcd_conf = '/etc/dhcpcd.conf';
+    $tmp_dhcpcd_conf = '/tmp/dhcpcd.conf';
+    $lines = file($dhcpcd_conf, FILE_IGNORE_NEW_LINES);
+    $found = false;
+
+    foreach ($lines as $i => $line) {
+        if (strpos($line, 'denyinterfaces') === 0) {
+            $found = true;
+            if ($enabled == 1 && preg_match('/\bwlan0\b/', $line)) {
+                $line = preg_replace('/\bwlan0\b\s*/', '', $line);
+                if (trim($line) == 'denyinterfaces') {
+                    unset($lines[$i]);
+                } else {
+                    $lines[$i] = $line;
+                }
+            }
+            if ($enabled == 0 && !preg_match('/\bwlan0\b/', $line)) {
+                $lines[$i] = rtrim($line) . ' wlan0';
             }
         }
     }
 
-    return $purview;
-}
+    file_put_contents($tmp_dhcpcd_conf, implode("\n", $lines) . "\n");
+    exec("sudo cp $tmp_dhcpcd_conf $dhcpcd_conf");
 
-function getMenuIndex($herf)
-{
-    $index = -1;
-    $model = getModel();
-    if ($model == 'EG500' || $model == 'EG410')
-        $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 'mc_conf', 'io_conf', 'bacnet_client', 'server_conf', 'opcua', 'bacnet', 'datadisplay', 'terminal', 'gps', 'nodered', 'docker');
-    else
-        $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 'mc_conf', 'bacnet_client', 'server_conf', 'opcua', 'bacnet', 'datadisplay', 'terminal', 'nodered', 'docker');
+    exec("sudo kill -9 $(pgrep -x wpa_supplicant)");
+    if (model_category('HT')) {
+	$cmd = "/usr/sbin/init-wlan0";
+	$check = shell_exec("pgrep -f " . escapeshellarg($cmd));
 
-    foreach ($menuList as $key => $value) {
-        if ($value == $herf) {
-            $index = $key;
-            break;
+	if (empty($check)) {
+		exec("sudo nohup $cmd > /dev/null 2>&1 &");
+	}
+
+	sleep(3);
+    } else {
+        if ($enabled == 1) {
+            // switch to sta mode
+            setMetricByIface('wlan0', get_default_route_metric('eth0') + 1);
+            exec("sudo systemctl stop hostapd.service; sudo systemctl mask hostapd.service; sleep 1; sudo systemctl disable hostapd.service; sudo brctl delif br0 wlan0");
+            exec("sudo systemctl restart dhcpcd.service; sudo systemctl restart dnsmasq.service");
+            $cmd = "sudo wpa_supplicant -B -i ". $_SESSION['wifi_client_interface'] ." -c /etc/wpa_supplicant/wpa_supplicant.conf &> /dev/null";
+            shell_exec($cmd);
+        } else {
+            // switch to ap mode
+            exec("sudo ifconfig wlan0 down; sleep 1; sudo ifconfig wlan0 up; sudo brctl addif br0 wlan0");
+            exec("sudo systemctl unmask hostapd.service; sudo systemctl enable hostapd.service; sleep 1; sudo systemctl start hostapd.service");
+            exec("sudo systemctl restart dhcpcd.service; sudo systemctl restart dnsmasq.service");
         }
     }
-
-    return $index;
 }
 
 function handlePageActions($extraFooterScripts, $page)
 {
     // handle page actions
-    $config = getConfig();
-    $index = getMenuIndex(str_replace('/', "", $page));
-    $purview = getPurview();
-    if ($index == -1) {
-        $status = 1;
-    } else {
-        $status = (intval($purview) >> $index) & 1;
-    }
-
-    if ($status == 0)
-        return;
-
     switch ($page) {
         case "/dashboard":
             DisplayDashboard($extraFooterScripts);
@@ -910,8 +1266,14 @@ function handlePageActions($extraFooterScripts, $page)
         case "/wpa_conf":
             DisplayWPAConfig();
             break;
-        case "/network_conf":
-            DisplayNetworkingConfig();
+        case "/wired_conf":
+            DisplayNetworkingConfig('wired');
+            break;
+        case "/lte_conf":
+            DisplayNetworkingConfig('lte');
+            break;
+        case "/wlan0_conf":
+            DisplayNetworkingConfig('wlan0');
             break;
         case "/hostapd_conf":
             DisplayHostAPDConfig();
@@ -932,7 +1294,7 @@ function handlePageActions($extraFooterScripts, $page)
             DisplayTorProxyConfig();
             break;
         case "/auth_conf":
-            DisplayAuthConfig($config);
+            DisplayAuthConfig($_SESSION['user_id']);
             break;
         case "/save_hostapd_conf":
             SaveTORAndVPNConfig();
@@ -970,11 +1332,20 @@ function handlePageActions($extraFooterScripts, $page)
         case "/mc_conf":
             DisplayMc();
             break;
+        case "/iec104_conf":
+            DisplayIEC104();
+            break;
         case "/io_conf":
             DisplayIO();
             break;
+        case "/system_param_conf":
+            DisplaySystemParam();
+            break;
         case "/server_conf":
             DisplayServer();
+            break;
+        case "/things_wing":
+            DisplayThingsWing();
             break;
         case "/ddns":
             DisplayDDNS();
@@ -984,6 +1355,12 @@ function handlePageActions($extraFooterScripts, $page)
             break;
         case "/bacnet":
             DisplayBACnet();
+            break;
+        case "/dnp3":
+            DisplayDnp3();
+            break;
+        case "/modbus_slave":
+            DisplayModbusSlave();
             break;
         case "/datadisplay":
             dataDisplay();
@@ -1003,8 +1380,32 @@ function handlePageActions($extraFooterScripts, $page)
         case "/firewall_conf":
             DisplayFirewall();
             break;
-        case "/bacnet_client":
+        case "/opcuacli_conf":
+            DisplayOpcuaClient();
+            break;
+        case "/baccli_conf":
             DisplayBACnetClient();
+            break;
+        case "/dnp3cli_conf":
+            DisplayDnp3Client();
+            break;
+        case "/ethernetip_conf":
+            DisplayEthernetip();
+            break;
+        case "/mbuscli_conf":
+            DisplayMbusClient();
+            break;
+        case "/snmpcli_conf":
+            DisplaySnmpClient();
+            break;
+        case "/iec1107_conf":
+            DisplayIec1107();
+            break;
+        case "/dlms_conf":
+            DisplayDlms();
+            break;
+        case "/iec61850cli_conf":
+            DisplayIec61850Client();
             break;
         case "/nodered":
             DisplayNodered();
@@ -1012,28 +1413,271 @@ function handlePageActions($extraFooterScripts, $page)
         case "/docker":
             DisplayDocker();
             break;
+        case "/chirpstack":
+            DisplayChirpstack();
+            break;
+        case "/bacnet_router":
+            DisplayBacnetRouter();
+            break;
+        case "/modbus_router":
+            DisplayModbusRouter();
+            break;
+        case "/backup_restore":
+            DisplayBackupRestore();
+            break;
+        case "/backup_update":
+            DisplayBackupUpdate();
+            break;
+        case "/iotedge":
+            DisplayIotedge();
+            break;
+        case "/hmi":
+            DisplayHmi();
+            break;
+        case "/scheduled":
+            DisplayScheduled();
+            break;
+        case "/login":
+            DisplayLogin();
+            break;
+        case "/restapi":
+            DisplayRestapi();
+            break;
         case "/logout":
-            // $currentUrl = $_SERVER['REQUEST_URI'];
-            // echo $currentUrl;
-            $_SESSION['logout'] = 1;
-            echo '<script type="text/javascript">';
-            echo 'window.location.href = "/"';
-            echo '</script>';
+            $auth = new \ElastPro\Auth\HTTPAuth();
+            $auth->logout();
+            break;
         default:
             DisplayDashboard($extraFooterScripts);
     }
 }
 
+function getPurview()
+{
+    $auth = new \ElastPro\Auth\HTTPAuth;
+    $user = $_SESSION['user_id'] ?? "admin";
+    $purview = 'ffffffff';
+    $config = $auth->getAuthConfig();
+
+    foreach ($config as $key => $value) {
+        if (is_array($value)) {
+            if ($value['admin_user'] == $user) {
+                $purview = $value['purview'];
+                break;
+            }
+        }
+    }
+
+    return trim($purview);
+}
+
+function getMenuIndex($herf)
+{
+    $index = -1;
+    $model = getModel();
+    $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 
+    'mc_conf', 'iec104_conf', 'dnp3cli_conf', 'opcuacli_conf', 'baccli_conf', 'ethernetip_conf', 'mbuscli_conf', 
+    'snmpcli_conf', 'iec1107_conf', 'dlms_conf', 'iec61850cli_conf', 'io_conf', 'system_param_conf', 'server_conf',
+    'modbus_slave', 'opcua', 'bacnet', 'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 'nodered', 'docker', 'terminal', 
+    'gps', 'scheduled');
+
+    foreach ($menuList as $key => $value) {
+        if ($value == $herf) {
+            $index = $key;
+            break;
+        }
+    }
+
+    return $index;
+}
+
+function getHexBit($hex, $bitIndex) {
+    $hex = ltrim($hex, '0x');
+    $hex = strtolower($hex);
+    
+    if (empty($hex) || $bitIndex < 0) {
+        return 0;
+    }
+    
+    if (strlen($hex) % 2 != 0) {
+        $hex = '0' . $hex;
+    }
+    
+    $binary = pack('H*', $hex);
+    
+    $bytePos = floor($bitIndex / 8);
+    $bitPos = $bitIndex % 8;
+    
+    $totalBytes = strlen($binary);
+    if ($bytePos >= $totalBytes) {
+        return 0;
+    }
+    
+    $byteIndex = $totalBytes - 1 - $bytePos;
+    $byte = ord($binary[$byteIndex]);
+    
+    return ($byte >> $bitPos) & 1;
+}
+
 function menuPurviewMatch($purview, $name, $id, $herf, $title)
 {
     $index = getMenuIndex($herf);
-
     if ($index == -1) {
         $status = 1;
     } else {
-        $status = (intval($purview) >> $index) & 1;
+        // $status = (intval($purview, 16) >> $index) & 1;
+        $status = getHexBit(trim($purview), $index);
     }
-    
+
     if ($status == 1)
         echo '<li class="nav-item" name="'. $name .'" id="'. $id .'" ><a class="nav-link" href="'. $herf .'">'. $title .'</a></li>';
+}
+
+function InputControlCustom($title, $name, $id = null, $descr = null, $defaultValue = null, $event = null)
+{
+    echo '<div class="cbi-value">
+      <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<input type="text" class="cbi-input-text" name="'.htmlspecialchars($name, ENT_QUOTES).'"';
+    if (isset($id)) {
+        echo ' id="'.htmlspecialchars($id, ENT_QUOTES).'"';
+    }
+    if (isset($id)) {
+        echo ' value="'.htmlspecialchars($defaultValue, ENT_QUOTES).'"';
+    }
+    if (isset($event)) {
+        echo ' onChange="' . htmlspecialchars($event, ENT_QUOTES). '"';
+    }
+    echo '>' , PHP_EOL;
+    if (isset($descr)) {
+        echo '<label class="cbi-value-description">' . htmlspecialchars($descr, ENT_QUOTES) . '</label>';
+    }
+    echo '</div>';
+}
+
+function SelectControlCustom($title, $name, $options, $selected = null, $id = null, $descr = null, $event = null, $disabled = null)
+{
+    echo '<div class="cbi-value">
+        <label class="cbi-value-title">' . htmlspecialchars($title, ENT_QUOTES) . '</label>' , PHP_EOL;
+    echo '<select class="cbi-input-select" name="'.htmlspecialchars($name, ENT_QUOTES).'"';
+    if (isset($id)) {
+        echo ' id="'.htmlspecialchars($id, ENT_QUOTES).'"';
+    }
+    if (isset($event)) {
+        echo ' onChange="' . htmlspecialchars($event, ENT_QUOTES). '"';
+    }
+    echo '>' , PHP_EOL;
+    if (is_array($options)) {
+        foreach ($options as $opt => $label) {
+            $select = '';
+            // $key = isAssoc($options) ? $opt : $label;
+            if ($label == $selected) {
+                $select = ' selected="selected"';
+            }
+            if ($label == $disabled) {
+                $disabled = ' disabled';
+            }
+            echo '<option value="'.htmlspecialchars($opt, ENT_QUOTES).'"'.$select.$disabled.'>'.
+                htmlspecialchars($label, ENT_QUOTES).'</option>' , PHP_EOL;
+        }
+    }
+
+    echo '</select>' , PHP_EOL;
+    if (isset($descr)) {
+        echo '<label class="cbi-value-description">' . htmlspecialchars($descr, ENT_QUOTES) . '</label>';
+    }
+    echo '</div>' , PHP_EOL;
+}
+
+function CheckboxControlCustom($title, $name, $id = null, $checked = null, $descr = null, $event = null)
+{
+    echo '<div class="cbi-value">
+      <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<input type="checkbox" value="1" ';
+    if (isset($checked)) {
+        echo htmlspecialchars($checked, ENT_QUOTES);
+    }
+    echo ' name="'.htmlspecialchars($name, ENT_QUOTES).'"';
+    if (isset($id)) {
+        echo ' id="'.htmlspecialchars($id, ENT_QUOTES).'"';
+    }
+    if (isset($event)) {
+        echo ' onChange="' . htmlspecialchars($event, ENT_QUOTES). '"';
+    }
+    echo '>' , PHP_EOL;
+    if (isset($descr)) {
+        echo '<label class="cbi-value-description">' . htmlspecialchars($descr, ENT_QUOTES) . '</label>';
+    }
+    echo '</div>';
+}
+
+function LabelControlCustom($title, $name, $id = null, $value = null, $descr = null, $event = null)
+{
+    echo '<div class="cbi-value">
+        <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<label name="'.htmlspecialchars($name, ENT_QUOTES).'"';
+    if (isset($id)) {
+        echo ' id="'.htmlspecialchars($id, ENT_QUOTES).'"';
+    }
+    if (isset($event)) {
+        echo ' onChange="' . htmlspecialchars($event, ENT_QUOTES). '"';
+    }
+    echo '>';
+    echo _(empty($value) ? '-' : $value);
+    echo '</label>', PHP_EOL;
+    if (isset($descr)) {
+        echo '<label class="cbi-value-description">' . htmlspecialchars($descr, ENT_QUOTES) . '</label>';
+    }
+    echo '</div>';
+}
+
+function RadioControlCustom($title, $name, $id, $event, $num = null, $value = null, $descr = null)
+{
+    echo '<div class="cbi-value">
+        <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<input class="cbi-input-radio" id="'.htmlspecialchars($id, ENT_QUOTES).'_enable'.$num.'" ';
+    echo 'name="'.htmlspecialchars($name, ENT_QUOTES).$num.'" value="1" type="radio" ' . ($value == '1' ? 'checked ' : ' ');
+    echo 'onchange="' . htmlspecialchars($event, ENT_QUOTES). '(true'.(($num != null)?(','.$num):'').', \''.$id.'\')">';
+    echo '<label >' . _('Enable') . '</label>';
+    echo PHP_EOL;
+    echo '<input class="cbi-input-radio" id="'.htmlspecialchars($id, ENT_QUOTES).'_disable'.$num.'" ';
+    echo 'name="'.htmlspecialchars($name, ENT_QUOTES).$num.'" value="0" type="radio" ' . ($value == '0' || $value == NULL ? 'checked ' : ' ');
+    echo 'onchange="' . htmlspecialchars($event, ENT_QUOTES). '(false'.(($num != null)?(','.$num):'').', \''.$id.'\')">';
+    echo '<label >' . _('Disable') . '</label>';
+    echo '</div>';
+}
+
+function UploadFileControlCustom($title, $btn_id, $text_id, $file_name, $file_id, $event)
+{
+    echo '<div class="cbi-value">
+    <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<label class="cbi-file-lable">
+        <input type="button" class="cbi-file-btn" id="'.htmlspecialchars($btn_id, ENT_QUOTES).'" value="'._("Choose file").'">
+        <span id="'.htmlspecialchars($text_id, ENT_QUOTES).'">'._("No file chosen").'</span>
+        <input type="file" class="cbi-file" name="'.htmlspecialchars($file_name, ENT_QUOTES).
+        '" id="'.htmlspecialchars($file_id, ENT_QUOTES).
+        '" onchange="' . htmlspecialchars($event, ENT_QUOTES). '">
+    </label>
+    </div>';
+}
+
+function UploadFileMultipleControlCustom($title, $btn_id, $text_id, $file_name, $file_id, $event)
+{
+    echo '<div class="cbi-value">
+    <label class="cbi-value-title">'.htmlspecialchars($title, ENT_QUOTES).'</label>' , PHP_EOL;
+    echo '<label class="cbi-file-lable">
+        <input type="button" class="cbi-file-btn" id="'.htmlspecialchars($btn_id, ENT_QUOTES).'" value="'._("Choose file").'">
+        <span id="'.htmlspecialchars($text_id, ENT_QUOTES).'">'._("No file chosen").'</span>
+        <input type="file" multiple="multiple" class="cbi-file" name="'.htmlspecialchars($file_name, ENT_QUOTES).
+        '" id="'.htmlspecialchars($file_id, ENT_QUOTES).
+        '" onchange="' . htmlspecialchars($event, ENT_QUOTES). '">
+    </label>
+    </div>';
+}
+
+function BtnSaveApplyCustom($save_name, $apply_name)
+{
+    echo '<div class="cbi-page-actions">
+        <input type="submit" class="btn btn-outline btn-primary" value="' . _("Save settings") . '" name="'.htmlspecialchars($save_name, ENT_QUOTES).'" />
+        <input type="submit" class="btn btn-success" value="' . _("Apply settings") . '" data-toggle="modal" data-target="#hostapdModal" name="'.htmlspecialchars($apply_name, ENT_QUOTES).'" />
+    </div>';
 }

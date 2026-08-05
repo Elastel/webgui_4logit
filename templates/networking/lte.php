@@ -1,10 +1,10 @@
-<div class="tab-pane fade" id="lte">
+<div class="tab-pane" id="lte">
   <h4 class="mt-3"><?php echo _("LTE settings") ;?></h4>
   <div class="row">
     <div class="form-group col-md-6">
-      <label for="cbxinterface"><?php echo _("Interface") ;?></label>
+      <label for="code"><?php echo _("Interface") ;?></label>
       <?php
-        SelectorOptions('interface', $lte_interface, null, 'cbxinterface');
+        SelectorOptions('interface', $lte_interface, null, 'cbxdhcpiface');
       ?>
     </div>
   </div>
@@ -51,6 +51,16 @@
       <input type="text" id="txtpassword" class="form-control" name="password" value="" />
     </div>
   </div>
+  <?php if (exec("uci get dct.basic.enabled") == "1") { ?>
+  <div class="row">
+    <div class="form-group col-md-6">
+      <div class="custom-control custom-switch">
+        <input class="custom-control-input" id="data_saving_mode" type="checkbox" name="data_saving_mode" value="1">
+        <label class="custom-control-label" for="data_saving_mode"><?php echo _("Enable data saving mode") ?></label>
+      </div>
+    </div>
+  </div>
+  <?php } ?>
 </div><!-- /.tab-pane | basic tab -->
 <script type="text/javascript">
     function authTypeChange(){

@@ -1,11 +1,10 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayDDNS()
 {   
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['saveddnssettings']) || isset($_POST['applyddnssettings'])) {
@@ -41,10 +40,11 @@ function DisplayDDNS()
                                 $status->addMessage("Failed to restart DDNS", 'danger');
                             } else {
                                 exec('sudo /etc/init.d/ddns restart');
+                                $status->addMessage('Configuration applied.', 'success');
                             }
                         } else {
                             $status->addMessage("No network, failed to restart DDNS.", 'danger');
-                        }  
+                        }
                     }   
                 }
             }
@@ -75,7 +75,7 @@ function saveDDNSConfig($status)
     
     exec("sudo /usr/local/bin/uci commit ddns");
 
-    $status->addMessage('DDNS configuration updated ', 'success');
+    $status->addMessage('Configuration updated.', 'success');
     return true;
 }
 

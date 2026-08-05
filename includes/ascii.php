@@ -1,78 +1,53 @@
 <?php
 
-require_once 'includes/status_messages.php';
-require_once 'config.php';
-
-/**
- * Displays info about the RaspAP project
- */
 function DisplayAscii()
 {
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
-    if (!RASPI_MONITOR_ENABLED) {
-        if (isset($_POST['saveasciisettings']) || isset($_POST['applyasciisettings'])) {
-            saveAsciiConfig($status);
-            
-            if (isset($_POST['applyasciisettings'])) {
-                sleep(2);
-                exec('sudo /etc/init.d/dct restart > /dev/null');
-            }
+    if (!RASPI_MONITOR_ENABLED && (!empty($_POST['saveasciisettings']) || !empty($_POST['applyasciisettings']))) {
+        saveAsciiConfig($status);
+
+        if (!empty($_POST['applyasciisettings'])) {
+            restartDctService();
+
+            $status->addMessage('Configuration applied.', 'success');
         }
     }
 
-    if ( isset($_POST['upload']) ) {
-        if (strlen($_FILES['upload_file']['name']) > 0) {
-            if (is_uploaded_file($_FILES['upload_file']['tmp_name'])) {
-                save_import_file('ascii', $status, $_FILES['upload_file']);
-            } else {
-                $status->addMessage('fail to upload file', 'danger');
-            }
-        }
+    if (!empty($_POST['upload']) && !empty($_FILES['upload_file']['name'])) {
+        handleFileUpload($status, $_FILES['upload_file']);
     }
 
     echo renderTemplate("ascii", compact('status'));
 }
 
+
 function saveAsciiConfig($status)
 {
-    $data = $_POST['table_data'];
-    $arr = json_decode($data, true);
-    $i = 0;
-
-    exec("sudo /usr/sbin/uci_get_count dct ascii", $count);
-
-    if ($count[0] == null || strlen($count[0]) <= 0) {
-        $count[0] = 0;
-    }
-
-    foreach ($arr as $list=>$things) {
-        if (is_array($things)) {
-            exec("sudo /usr/local/bin/uci delete dct.@ascii[$i]");
-            exec("sudo /usr/local/bin/uci add dct ascii");
-            foreach ($things as $key=>$val) {
-                if ($key == "enabled") {
-                    if ($val == "true") {
-                        exec("sudo /usr/local/bin/uci set dct.@ascii[$i].$key=1");
-                    } else {
-                        exec("sudo /usr/local/bin/uci set dct.@ascii[$i].$key=0");
-                    }
-                } else {
-                    exec("sudo /usr/local/bin/uci set dct.@ascii[$i].$key='$val'");
-                }  
-            }
+    $data = $_POST['table_data'] ?? '';
+    if (!empty($data)) {
+        if (file_put_contents(ELASTEL_DCT_CONFIG_JSON, $data) === false) {
+            $status->addMessage('Failed to save configuration', 'danger');
+            return;
         }
-        $i++;
+
+        exec('sudo /usr/sbin/set_config ' . escapeshellarg(ELASTEL_DCT_CONFIG_JSON) . ' dct ascii');
+        $status->addMessage('Configuration updated.', 'success');
+    } else {
+        $status->addMessage('No data provided for configuration', 'warning');
     }
+}
 
-    if (number_format($count[0]) > $i) {
-        for ($j = $i; $j < number_format($count[0]); $j++) {
-            exec("sudo /usr/local/bin/uci delete dct.@ascii[$i]");
-        }
+function handleFileUpload($status, $file)
+{
+    if (is_uploaded_file($file['tmp_name'])) {
+        save_import_file('ascii', $status, $file);
+    } else {
+        $status->addMessage('Failed to upload file', 'danger');
     }
+}
 
-    exec('sudo /usr/local/bin/uci commit dct');
-
-    $status->addMessage('dct configuration updated ', 'success');
-    return true;
+function restartDctService()
+{
+    exec('sudo /etc/init.d/dct restart > /dev/null 2>&1');
 }

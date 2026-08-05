@@ -1,6 +1,5 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 /**
@@ -8,7 +7,7 @@ require_once 'config.php';
  */
 function DisplayS7()
 {
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['saves7settings']) || isset($_POST['applys7settings'])) {
@@ -17,6 +16,8 @@ function DisplayS7()
             if (isset($_POST['applys7settings'])) {
                 sleep(2);
                 exec('sudo /etc/init.d/dct restart > /dev/null');
+
+                $status->addMessage('Configuration applied.', 'success');
             }
         }
     }
@@ -26,7 +27,7 @@ function DisplayS7()
             if (is_uploaded_file($_FILES['upload_file']['tmp_name'])) {
                 save_import_file('s7', $status, $_FILES['upload_file']);
             } else {
-                $status->addMessage('fail to upload file', 'danger');
+                $status->addMessage('Fail to upload file', 'danger');
             }
         }
     }
@@ -38,51 +39,9 @@ function DisplayS7()
 function saveS7Config($status)
 {
     $data = $_POST['table_data'];
-    $arr = json_decode($data, true);
-    $i = 0;
+    file_put_contents(ELASTEL_DCT_CONFIG_JSON, $data);
+    exec('sudo /usr/sbin/set_config ' . ELASTEL_DCT_CONFIG_JSON . ' dct s7');
 
-    $reg_type_value = array("I", "Q", "M", "DB", "V", "C", "T");
-    $word_len_value = array("Bit", "Byte", "Word", "DWord", "Real", "Counter", "Timer");
-
-    exec("sudo /usr/sbin/uci_get_count dct s7", $count);
-
-    if ($count[0] == null || strlen($count[0]) <= 0) {
-        $count[0] = 0;
-    }
-
-    foreach ($arr as $list=>$things) {
-        if (is_array($things)) {
-            exec("sudo /usr/local/bin/uci delete dct.@s7[$i]");
-            exec("sudo /usr/local/bin/uci add dct s7");
-            foreach ($things as $key=>$val) {
-                if ($key == "reg_type") {
-                    $reg_type_num = array_search($val, $reg_type_value);
-                    exec("sudo /usr/local/bin/uci set dct.@s7[$i].$key=$reg_type_num");
-                } else if ($key == "word_len") {
-                    $word_len_num = array_search($val, $word_len_value);
-                    exec("sudo /usr/local/bin/uci set dct.@s7[$i].$key=$word_len_num");
-                } else if ($key == "enabled") {
-                    if ($val == "true") {
-                        exec("sudo /usr/local/bin/uci set dct.@s7[$i].$key=1");
-                    } else {
-                        exec("sudo /usr/local/bin/uci set dct.@s7[$i].$key=0");
-                    }
-                } else {
-                    exec("sudo /usr/local/bin/uci set dct.@s7[$i].$key='$val'");
-                }  
-            }
-        }
-        $i++;
-    }
-
-    if (number_format($count[0]) > $i) {
-        for ($j = $i; $j < number_format($count[0]); $j++) {
-            exec("sudo /usr/local/bin/uci delete dct.@s7[$i]");
-        }
-    }
-
-    exec('sudo /usr/local/bin/uci commit dct');
-
-    $status->addMessage('dct configuration updated ', 'success');
+    $status->addMessage('Configuration updated.', 'success');
     return true;
 }

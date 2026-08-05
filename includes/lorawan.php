@@ -1,11 +1,10 @@
 <?php
 
-require_once 'includes/status_messages.php';
 require_once 'config.php';
 
 function DisplayLorawan()
 {   
-    $status = new StatusMessages();
+    $status = new \ElastPro\Messages\StatusMessage;
 
     if (!RASPI_MONITOR_ENABLED) {
         if (isset($_POST['savesettings']) || isset($_POST['applysettings'])) {
@@ -14,6 +13,7 @@ function DisplayLorawan()
             if (isset($_POST['applysettings'])) {
                 sleep(1);
                 exec('sudo /etc/init.d/loragw restart > /dev/null');
+                $status->addMessage('Configuration applied.', 'success');
             }
         }
     }
@@ -36,7 +36,7 @@ function SaveLorawanUpload($status, $file, $file_name)
             throw new RuntimeException('Invalid parameters');
         }
 
-        $upload = \RaspAP\Uploader\Upload::factory('lorawan', $tmp_destdir);
+        $upload = \ElastPro\Uploader\FileUpload::factory('lorawan', $tmp_destdir);
         $upload->set_max_file_size(64*KB);
         $upload->set_allowed_mime_types(array('lorawan' => 'text/plain'));
         $upload->file($file);
@@ -60,11 +60,6 @@ function SaveLorawanUpload($status, $file, $file_name)
         // Move processed file from tmp to destination
         system("sudo mv $tmp_serverconfig /etc/basic_station/" . $file_name, $return);
 
-        // if ($return ==0) {
-        //     $status->addMessage('mqtt certificate uploaded successfully', 'info');
-        // } else {
-        //     $status->addMessage('Unable to save mqtt certificate', 'danger');
-        // }
         return $status;
 
     } catch (RuntimeException $e) {
@@ -139,21 +134,25 @@ function saveLorawanConfig($status)
             $data['SX130x_conf']['radio_1']['enable'] = false;
         }
         
-        $channels = array('channel_enable', 'channel_radio', 'channel_if');
         for ($i = 0; $i < 8; $i++) {
-            if ($_POST['channel_enable' . $i] == '1') {
-                $data['SX130x_conf']['chan_multiSF_' . $i]['enable'] = true;
-                if ($_POST['channel_radio' . $i] != '') {
-                    $data['SX130x_conf']['chan_multiSF_' . $i]['radio'] = intval($_POST['channel_radio' . $i]);
-                }
-
-                if ($_POST['channel_if' . $i] != '') {
-                    $data['SX130x_conf']['chan_multiSF_' . $i]['if'] = intval($_POST['channel_if' . $i]);
-                }
-            } else {
-                $data['SX130x_conf']['chan_multiSF_' . $i]['enable'] = false;
-            }
+            $data['SX130x_conf']['chan_multiSF_' . $i]['enable'] = true;
         }
+        
+        // $channels = array('channel_enable', 'channel_radio', 'channel_if');
+        // for ($i = 0; $i < 8; $i++) {
+        //     if ($_POST['channel_enable' . $i] == '1') {
+        //         $data['SX130x_conf']['chan_multiSF_' . $i]['enable'] = true;
+        //         if ($_POST['channel_radio' . $i] != '') {
+        //             $data['SX130x_conf']['chan_multiSF_' . $i]['radio'] = intval($_POST['channel_radio' . $i]);
+        //         }
+
+        //         if ($_POST['channel_if' . $i] != '') {
+        //             $data['SX130x_conf']['chan_multiSF_' . $i]['if'] = intval($_POST['channel_if' . $i]);
+        //         }
+        //     } else {
+        //         $data['SX130x_conf']['chan_multiSF_' . $i]['enable'] = false;
+        //     }
+        // }
 
         $json_strings = json_encode($data);
         file_put_contents("/tmp/global_conf.json", $json_strings);
@@ -237,7 +236,7 @@ function saveLorawanConfig($status)
         exec("sudo /usr/local/bin/uci delete loragw.loragw.lora_key");
     }
 
-    $status->addMessage('lorawan configuration updated ', 'success');
+    $status->addMessage('Configuration updated.', 'success');
     exec("sudo /usr/local/bin/uci set loragw.loragw.type=" .$_POST['type']);
     exec("sudo /usr/local/bin/uci commit loragw");
 }
