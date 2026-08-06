@@ -1088,7 +1088,7 @@ function isIoExistts()
 function isLteEnabled()
 {
     $lte_enabled = false;
-    exec("sudo uci get system.system.enabled", $lte_enabled);
+    exec("sudo uci get system.system.lte_enabled", $lte_enabled);
     if ($lte_enabled[0] == '1') {
         return true;
     } else {
