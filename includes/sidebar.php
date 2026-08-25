@@ -207,6 +207,7 @@
             <div class="collapse navbar-collapse" id="navbar-collapse-system">
             <ul class="nav navbar-nav navbar-right">
                 <li class="nav-item" name="system_info" id="system_system_info"> <a class="nav-link" href="system_info"><?php echo _("System"); ?></a></li>
+                <li class="nav-item" name="time_setting" id="system_time_setting"> <a class="nav-link" href="time_setting"><?php echo _("Time Settings"); ?></a></li>
                 <?php 
                     if(isBinExists("gpsd")) {
                         menuPurviewMatch($purview, 'gps', 'system_gps', 'gps', _('GPS Location'));

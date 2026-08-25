@@ -1308,6 +1308,9 @@ function handlePageActions($extraFooterScripts, $page)
         case "/system_info":
             DisplaySystem();
             break;
+        case "/time_setting":
+            DisplayTimeSetting();
+            break;
         case "/about":
             DisplayAbout();
             break;

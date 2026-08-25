@@ -85,7 +85,6 @@ function DisplaySystem()
     $arrLocales = array(
         'en_GB.UTF-8' => 'English',
         // 'cs_CZ.UTF-8' => 'Čeština',
-        // 'zh_TW.UTF-8' => '正體中文 (Chinese traditional)',
         'zh_CN.UTF-8' => '简体中文 (Chinese simplified)',
         // 'da_DK.UTF-8' => 'Dansk',
         // 'de_DE.UTF-8' => 'Deutsch',
@@ -95,7 +94,6 @@ function DisplaySystem()
         // 'el_GR.UTF-8' => 'Ελληνικά',
         // 'id_ID.UTF-8' => 'Indonesian',
         // 'it_IT.UTF-8' => 'Italiano',
-        // 'ja_JP.UTF-8' => '日本語 (Japanese)',
         // 'ko_KR.UTF-8' => '한국어 (Korean)',
         // 'nl_NL.UTF-8' => 'Nederlands',
         // 'pl_PL.UTF-8' => 'Polskie',

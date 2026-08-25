@@ -106,12 +106,12 @@
 
   const slider = document.getElementById("hmi_brightness");
   const valueDisplay = document.getElementById("brightnessValue");
-  const csrfToken = document.querySelector('input[name="csrf_token"]').value; // 假设隐藏字段名为csrf_token
+  const csrfToken = document.querySelector('input[name="csrf_token"]').value;
 
   slider.addEventListener("input", () => {
       valueDisplay.textContent = slider.value;
 
-      // 可选：调用后台 PHP 进行实际亮度设置
+      // Optionally call the backend PHP to apply the brightness setting
       fetch("ajax/system/set_brightness.php", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },

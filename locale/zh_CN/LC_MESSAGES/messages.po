@@ -133,6 +133,30 @@ msgstr "终端"
 msgid "Scheduled Tasks"
 msgstr "定时任务"
 
+msgid "Time Settings"
+msgstr "时间设置"
+
+msgid "Current System Time"
+msgstr "当前系统时间"
+
+msgid "Current RTC Time"
+msgstr "当前RTC时间"
+
+msgid "RTC OK"
+msgstr "RTC正常"
+
+msgid "RTC Unavailable"
+msgstr "RTC不可用"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Set System Time"
+msgstr "设置系统时间"
+
+msgid "Sync to RTC"
+msgstr "同步到RTC"
+
 msgid "Backup/Restore"
 msgstr "备份/恢复"
 
