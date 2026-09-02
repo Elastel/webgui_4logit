@@ -21,7 +21,7 @@
           <div class="row">
             <?php if (trim($target) === '4logit') { ?>
             <div class="col-md-8">
-              <div class="mt-3"><img src="app/img/<?php echo trim($target); ?>.png"></div>
+              <div class="mt-3"><img src="app/img/<?php echo trim($target); ?>.png" style="max-width:100%; height:auto;"></div>
               <div class="mt-3" style="font-weight: bold;">Industrial IoT Gateway
               </div>
               <div class="mt-3" style="text-indent : 1rem">UAx300 is an industrial gateway solution offered under the MeasureSphere brand. Additional software development and technical support are provided by Tesla Ölçü Kontrol Sistemleri ve Çevre Teknolojileri Ltd. Şti.
