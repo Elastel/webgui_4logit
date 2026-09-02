@@ -63,13 +63,22 @@ export function initDctDataDisplay() {
                 return;
             }
 
-            const jsonResult = Object.entries(jsonData).map(([key, value]) => {
-                if (key.includes(";"))  {
-                    const [name, index] = key.split(";");
-                    return [name, index, value];
-                } else {
-                    return [key, 0, value];
+            // Convert old {"Device.Tag;index": value} format into new {"Device.Tag": value} per requirement
+            // Result example: {"test.aa": 1, "test.bb": 2, "test.cc": 3, "test.dd": 4, "test.ee": 5}
+            const cleanData = {};
+            Object.entries(jsonData).forEach(([k, v]) => {
+                const sep = k.indexOf(';');
+                const baseKey = sep >= 0 ? k.substring(0, sep) : k;
+                const idxStr = sep >= 0 ? k.substring(sep + 1) : '0';
+                // Prefer center index == '0' as the canonical value for each Device.Tag;
+                // otherwise keep the first-seen value.
+                if (!(baseKey in cleanData) || idxStr === '0') {
+                    cleanData[baseKey] = v;
                 }
+            });
+
+            const jsonResult = Object.entries(cleanData).map(([key, value]) => {
+                return [key, value];
             });
 
 
@@ -97,7 +106,7 @@ export function initDctDataDisplay() {
             var tbody = table.tBodies[0];
             if (select == "all") {
                 jsonResult.forEach(item => {
-                    const [name, index, value] = item;
+                    const [name, value] = item;
                     addDataDisplyItem(tbody, table, name, value, keywords);
                 });
             } else {
@@ -109,7 +118,7 @@ export function initDctDataDisplay() {
                     var key = item.substring(item.indexOf('-') + 1);
                     const jsonItem = jsonResult.find(([name]) => name === key);
                     if (jsonItem) {
-                        const value = jsonItem[2];
+                        const value = jsonItem[1];
                         addDataDisplyItem(tbody, table, key, value, keywords);
                     }
                 });

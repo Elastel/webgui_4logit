@@ -7,7 +7,7 @@
             <?php 
               $target = file_get_contents('/etc/target_model');
               if (trim($target) === '4logit') {
-                echo _("About 4Logit");
+                echo _("About");
               } else {
                 echo _("About Elastel");
               }
@@ -22,9 +22,15 @@
             <?php if (trim($target) === '4logit') { ?>
             <div class="col-md-8">
               <div class="mt-3"><img src="app/img/<?php echo trim($target); ?>.png"></div>
-              <div class="mt-3" style="text-indent : 1rem; font-weight: bold;">UAx300 and CEMx300 are products of 4Logit.
+              <div class="mt-3" style="font-weight: bold;">Industrial IoT Gateway
               </div>
-              <div class="mt-3" style="text-indent : 1rem; font-weight: bold;">4Logit is a brand of "Tesla Olcu Kontrol Sistemleri ve Cevre Tek. Ltd. Sti. Turkiye - Turkey"  <a href="https://www.teslakontrol.com">www.teslakontrol.com</a>
+              <div class="mt-3" style="text-indent : 1rem">UAx300 is an industrial gateway solution offered under the MeasureSphere brand. Additional software development and technical support are provided by Tesla Ölçü Kontrol Sistemleri ve Çevre Teknolojileri Ltd. Şti.
+              </div>
+              <div class="mt-3">
+                Product support: <a href="mailto:info@measuresphere.com">info@measuresphere.com</a>
+              </div>
+              <div class="mt-1">
+                Corporate contact: <a href="mailto:info@teslakontrol.com">info@teslakontrol.com</a>
               </div>
             </div>
             </br></br></br></br></br></br></br></br></br></br></br></br></br></br>

@@ -831,7 +831,11 @@ function setSidbarLogo($target, $hostname)
         $name = $hostname . ".php";
     } else if ($target != null && file_exists('/var/www/html/app/img/'.$target.'.php')) {
         $name = $target . ".php";
-        echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="70">';
+        if (strpos($target, "4logit") !== false) {
+            echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="30">'; 
+        } else {
+            echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="70">';
+        }
         return;
     } else if (strpos($target, "&OEM") !== false) {
         return;
@@ -841,7 +845,12 @@ function setSidbarLogo($target, $hostname)
         $name = "elastel.php";
     }
 
-    echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="50">';
+    if ($target != null && (strpos($target, "4logit") !== false)) {
+        echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="30">'; 
+    } else {
+       echo '<img src="app/img/'. $name .'" class="navbar-logo" width="200" height="50">'; 
+    }
+    
 }
 
 function getSn()
@@ -1253,8 +1262,30 @@ function switchWifiMode($enabled)
     }
 }
 
+function pageAccessAllowed($page)
+{
+    $href = ltrim($page, '/');
+    if (empty($href)) {
+        return true;
+    }
+
+    $purview = getPurview();
+    $index = getMenuIndex($href);
+    if ($index == -1) {
+        // Pages without a menu entry (dashboard, about, logout, etc.) are always accessible
+        return true;
+    }
+
+    return getHexBit(trim($purview), $index) == 1;
+}
+
 function handlePageActions($extraFooterScripts, $page)
 {
+    if (!pageAccessAllowed($page)) {
+        echo '<div class="alert alert-danger" role="alert"><h4 class="alert-heading">' . _("Access Denied") . '</h4><p>' . _("You do not have permission to access this page.") . '</p></div>';
+        return;
+    }
+
     // handle page actions
     switch ($page) {
         case "/dashboard":
@@ -1478,11 +1509,17 @@ function getMenuIndex($herf)
 {
     $index = -1;
     $model = getModel();
-    $menuList = array('basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 
-    'mc_conf', 'iec104_conf', 'dnp3cli_conf', 'opcuacli_conf', 'baccli_conf', 'ethernetip_conf', 'mbuscli_conf', 
-    'snmpcli_conf', 'iec1107_conf', 'dlms_conf', 'iec61850cli_conf', 'io_conf', 'system_param_conf', 'server_conf',
-    'modbus_slave', 'opcua', 'bacnet', 'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 'nodered', 'docker', 'terminal', 
-    'gps', 'scheduled');
+    $menuList = array('wired_conf', 'lte_conf', 'wlan0_conf', 'dhcpd_conf', 'hostapd_conf', 'wpa_conf', 
+    'detection_conf', 'lorawan_conf', 'firewall_conf', 
+    'basic_conf', 'interfaces_conf', 'modbus_conf', 'ascii_conf', 's7_conf', 'fx_conf', 
+    'mc_conf', 'iec104_conf', 'dnp3cli_conf', 'opcuacli_conf', 'baccli_conf', 'ethernetip_conf', 
+    'mbuscli_conf', 'snmpcli_conf', 'iec1107_conf', 'dlms_conf', 'iec61850cli_conf', 'io_conf', 
+    'system_param_conf', 'server_conf', 'modbus_slave', 'opcua', 'bacnet', 'dnp3', 'datadisplay', 
+    'bacnet_router', 'modbus_router', 
+    'things_wing', 'ddns', 'openvpn', 'wireguard', 
+    'nodered', 'docker', 'chirpstack', 'iotedge', 'restapi', 
+    'system_info', 'time_setting', 'gps', 'terminal', 'scheduled', 'hmi', 'auth_conf', 
+    'backup_restore', 'backup_update');
 
     foreach ($menuList as $key => $value) {
         if ($value == $herf) {
@@ -1495,7 +1532,7 @@ function getMenuIndex($herf)
 }
 
 function getHexBit($hex, $bitIndex) {
-    $hex = ltrim($hex, '0x');
+    $hex = preg_replace('/^0x/i', '', trim($hex));
     $hex = strtolower($hex);
     
     if (empty($hex) || $bitIndex < 0) {
@@ -1508,12 +1545,14 @@ function getHexBit($hex, $bitIndex) {
     
     $binary = pack('H*', $hex);
     
-    $bytePos = floor($bitIndex / 8);
+    $bytePos = (int) floor($bitIndex / 8);
     $bitPos = $bitIndex % 8;
     
     $totalBytes = strlen($binary);
     if ($bytePos >= $totalBytes) {
-        return 0;
+        // Legacy purview values do not cover the newly added pages;
+        // treat those bits as granted (1) so existing users keep seeing the same menus.
+        return 1;
     }
     
     $byteIndex = $totalBytes - 1 - $bytePos;

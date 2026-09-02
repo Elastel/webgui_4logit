@@ -98,8 +98,29 @@ export function doesColumnExist(tableId, columnName) {
 globalThis.doesColumnExist = doesColumnExist;
 
 export function writeValueByTag(object) {
+    var row = $(object).closest('tr').get(0);
     var tds = $(object).parent().parent().find("td");
-    var tagName = tds.filter('[name="factor_name"]').text();
+    var deviceText = '';
+    if (row) {
+        var devTd = row.querySelector('td[name="device_name"]');
+        if (devTd) deviceText = (devTd.innerText || devTd.textContent || '').trim();
+    }
+    var factorText = tds.filter('[name="factor_name"]').text();
+    // Tag names in the cell may be delimited by comma or semicolon.
+    // Collect ALL tags, then prefix each with Device Name (if present
+    // and tag doesn't already contain ".") so every entry matches the
+    // new flat JSON "Device.Tag" shape.
+    var rawTags = [];
+    if (factorText) {
+        rawTags = String(factorText).split(/[,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    var fullyQualifiedTags = rawTags.map(function (t) {
+        if (t && deviceText && t.indexOf('.') < 0) {
+            return deviceText + '.' + t;
+        }
+        return t;
+    });
+    var tagName = fullyQualifiedTags[0] || '';
     var serverCenter = tds.filter('[name="server_center"]').text();
     if (serverCenter == '' || serverCenter == '-') {
         serverCenter = '-1';
@@ -131,25 +152,32 @@ export function writeValueByTag(object) {
     container.style.alignItems = "center";
     container.style.gap = "10px";
 
-    let labelOrSelect;
-    if (tagName.includes(';')) {
-        const select = document.createElement('select');
-        select.style.display = 'block';
-        select.style.marginBottom = '10px';
-        select.style.padding = '5px';
-        tagName.split(';').forEach(function(item) {
-            const option = document.createElement('option');
-            option.value = item;
-            option.textContent = item;
-            select.appendChild(option);
+    // Multi-tag rule rows: show a dropdown so the operator can pick
+    // which Device.Tag to write. Single-tag rows keep the simple label.
+    var labelOrSelect;
+    if (fullyQualifiedTags.length > 1) {
+        var sel = document.createElement('select');
+        sel.id = 'cbiWriteTagSel';
+        fullyQualifiedTags.forEach(function (t, idx) {
+            var opt = document.createElement('option');
+            opt.value = t;
+            // Dropdown displays only the tag part after "Device.", but the
+            // underlying value stays fully-qualified so the write request
+            // still targets the correct Device.Tag flat-JSON key.
+            opt.textContent = rawTags[idx] || t.split('.').pop() || t;
+            sel.appendChild(opt);
         });
-        labelOrSelect = select;
+        sel.style.marginBottom = '10px';
+        sel.style.minWidth = '160px';
+        sel.style.padding = '3px 4px';
+        sel.style.border = '1px solid #ccc';
+        labelOrSelect = sel;
     } else {
-        const label = document.createElement('label');
-        label.textContent = tagName + ':';
-        label.style.display = 'block';
-        label.style.marginBottom = '10px';
-        labelOrSelect = label;
+        var lbl = document.createElement('label');
+        lbl.textContent = (fullyQualifiedTags[0] || tagName) + ':';
+        lbl.style.display = 'block';
+        lbl.style.marginBottom = '10px';
+        labelOrSelect = lbl;
     }
 
     const input = document.createElement('input');
@@ -201,17 +229,23 @@ export function writeValueByTag(object) {
     });
 
     writeButton.addEventListener('click', () => {
-        let params = '';
-        if (tagName.includes(';')) {
-            const selectedValue = labelOrSelect.value;
-            params = 'tagName=' + selectedValue + ';' + flag + '&' + 'value=' + input.value;
+        // Resolve the effective Device.Tag: either the user-picked value
+        // from the multi-tag <select>, or the precomputed first fully-
+        // qualified tag (single-tag rows still render as <label>).
+        var selectedTag;
+        if (labelOrSelect && labelOrSelect.tagName === 'SELECT') {
+            selectedTag = labelOrSelect.value;
         } else {
-            params = 'tagName=' + tagName + ';' + flag + '&' + 'value=' + input.value
+            selectedTag = fullyQualifiedTags[0] || tagName;
         }
-        
+
+        // IMPORTANT: send the fully-qualified Device.Tag WITHOUT any
+        // ";flag" suffix. PHP then builds {"Device.Tag": value} directly.
+        let params = 'tagName=' + encodeURIComponent(selectedTag) + '&' + 'value=' + encodeURIComponent(input.value);
+
         // console.log(params);
-        if (input.value.length > 0) {
-            $.get('ajax/dct/get_dctcfg.php?type=tag_write&' + params, function(data) {}); 
+        if (String(input.value).length > 0) {
+            $.get('ajax/dct/get_dctcfg.php?type=tag_write&' + params, function(data) {});
         } else {
             alert("The input cannot be empty!");
         }
@@ -1132,66 +1166,118 @@ globalThis.saveDataIO = saveDataIO;
 /*Realtime Data*/
 export function getRealtimeData() {
     $.get('ajax/dct/get_dctcfg.php?type=datadisplay', function(data) {
-        if (!data.includes('"data"')) {
-            return;
-        }
-        // console.log(data);
+        if (!data.includes('"data"')) return;
         const tmp = JSON.parse(data);
         const jsonData = JSON.parse(tmp['data']);
         
         if (jsonData == null)
             return false;
 
-        const jsonResult = Object.entries(jsonData).map(([key, value]) => {
-            if (key.includes(";"))  {
-                const [name, index] = key.split(";");
-                return [name, index, value];
-            } else {
-                return [key, 0, value];
+        // Convert old {"Device.Tag;index": value} format into new {"Device.Tag": value}
+        const cleanData = {};
+        Object.entries(jsonData).forEach(([k, v]) => {
+            const sep = k.indexOf(';');
+            const baseKey = sep >= 0 ? k.substring(0, sep) : k;
+            const idxStr = sep >= 0 ? k.substring(sep + 1) : '0';
+            if (!(baseKey in cleanData) || idxStr === '0') {
+                cleanData[baseKey] = v;
             }
         });
+
+        const jsonResult = Object.entries(cleanData);
+
+        function resolveValue(key) {
+            if (key in cleanData) return cleanData[key];
+            var kv = jsonResult.find(([n]) => n === key);
+            if (kv) return kv[1];
+            return undefined;
+        }
 
         const trList = document.querySelectorAll('table tr');
         var dnp3 = document.getElementById('option_list_dnp3');
         var modbus_slave = document.getElementById('option_list_modbus_slave_point');
         var opcua = document.getElementById('option_list_opcuaserv');
+
         trList.forEach((tr) => {
             var cur_value = '';
             if (dnp3 || modbus_slave || opcua) {
                 if (tr.querySelector('td[name="source_object"]')) {
-                    var factor = tr.querySelector('td[name="source_object"]').innerHTML;
-                    factor = factor.substring(factor.indexOf('-') + 1)
-                    const jsonItem = jsonResult.find(([name]) => name === factor);
-                    if (jsonItem) {
-                        cur_value += jsonItem[2];
+                    var srcTd = tr.querySelector('td[name="source_object"]');
+                    var rawFactor = (srcTd.innerText || srcTd.textContent || srcTd.innerHTML || '').trim()
+                        .replace(/<br\s*\/?>/gi, ',').replace(/<[^>]+>/g, '');
+                    // Try 1: substring AFTER the first '-'  (e.g. "Modbus TCP-dev.aa" -> "dev.aa")
+                    var idx = rawFactor.indexOf('-');
+                    var candidate1 = idx >= 0 ? rawFactor.substring(idx + 1) : rawFactor;
+                    // Try 2: the full raw text as-is
+                    var candidate2 = rawFactor;
+                    // Try 3: last-segment (after LAST '-') – for names containing extra hyphens
+                    var idxLast = rawFactor.lastIndexOf('-');
+                    var candidate3 = idxLast >= 0 && idxLast !== idx ? rawFactor.substring(idxLast + 1) : null;
+
+                    var v = resolveValue(candidate1);
+                    if (v === undefined) v = resolveValue(candidate2);
+                    if (v === undefined && candidate3) v = resolveValue(candidate3);
+                    if (v === undefined) {
+                        // Fallback: brute-force match any cleanData key or its tail segment.
+                        for (var k in cleanData) {
+                            if (k === candidate1 || k === candidate2) { v = cleanData[k]; break; }
+                            var dot = k.indexOf('.');
+                            var tail = dot >= 0 ? k.substring(dot + 1) : k;
+                            if (tail === candidate1 || tail === rawFactor) { v = cleanData[k]; break; }
+                        }
                     }
+                    if (v !== undefined) cur_value = String(v);
                 }
             } else {
-                if (tr.querySelector('td[name="factor_name"]')) {
-                    //console.log(tr.querySelector('td[name="factor_name"]').innerHTML);
-                    var factor = tr.querySelector('td[name="factor_name"]').innerHTML;
-                    var serverCenter = tr.querySelector('td[name="server_center"]').innerHTML;
-                    var factorList = factor.split(';');
-                    var flag = getReportingCenterFlag(serverCenter);
-                    factorList.forEach((key) => {
-                        // console.log(flag);
-                        var jsonValue = '';
-                        jsonResult.forEach(item => {
-                            const [name, index, value] = item;
-                            if (name == key && (flag == parseInt(index) || index == 0)) {
-                                jsonValue = value;
-                                return;
-                            }
-                        });
-                        cur_value += jsonValue + ';'; 
-                    })
-
-                    if (cur_value.slice(-1) === ';') {
-                        cur_value = cur_value.slice(0, -1);
-                    }
+                var deviceNameTd = tr.querySelector('td[name="device_name"]');
+                var tagNameTd = tr.querySelector('td[name="factor_name"]');
+                var factorNameTd = tagNameTd;
+                if (deviceNameTd && tagNameTd) {
+                    // Modbus/South-device rules table:
+                    //   Device Name col = "test", Tag Name col = "aa,bb,cc,dd,ee"
+                    // Composite key = DeviceName + "." + TagName
+                    //   (matches the new flat JSON: {"test.aa":99, "test.bb":2, ...})
+                    var devText = (deviceNameTd.innerText || deviceNameTd.textContent || deviceNameTd.innerHTML || '').trim();
+                    var tagText = (tagNameTd.innerText || tagNameTd.textContent || tagNameTd.innerHTML || '').trim();
+                    // Strip any HTML fragments that leak through innerHTML fallback
+                    tagText = tagText.replace(/<br\s*\/?>/gi, ',').replace(/<[^>]+>/g, '');
+                    var tags = [];
+                    // The Tag Name cell may mix ',' and ';' as delimiters (e.g. "aa;bb,cc,d;ee").
+                    // Always split on BOTH delimiters so every tag is extracted regardless of
+                    // what the user typed in, then filter empties/whitespace.
+                    tags = tagText.split(/[,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+                    var values = [];
+                    tags.forEach(function(t) {
+                        if (!t) return;
+                        var k = devText ? (devText + '.' + t) : t;
+                        var v = resolveValue(k);
+                        if (v === undefined && devText) {
+                            // tag already fully qualified? try raw tag
+                            v = resolveValue(t);
+                        }
+                        if (v !== undefined && v !== null && String(v).length > 0) {
+                            values.push(String(v));
+                        } else {
+                            values.push('');
+                        }
+                    });
+                    cur_value = values.join(';');
+                } else if (factorNameTd) {
+                    // Fallback: older/simple tables where factor_name cell
+                    // already holds "Device.Tag" or "RuleName-Device.Tag"
+                    var factor = (factorNameTd.innerText || factorNameTd.textContent || factorNameTd.innerHTML || '').trim();
+                    factor = factor.replace(/<br\s*\/?>/gi, ',').replace(/<[^>]+>/g, '');
+                    var factorList = factor.split(/[,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+                    var values = factorList.map((tagKey) => {
+                        var p = tagKey.indexOf('-');
+                        var cleanKey = p >= 0 ? tagKey.substring(p + 1) : tagKey;
+                        var v = resolveValue(cleanKey);
+                        if (v === undefined) v = resolveValue(tagKey);
+                        return v !== undefined && v !== null ? String(v) : '';
+                    });
+                    cur_value = values.join(';');
                 }
             }
-            
             if (tr.querySelector('td[name="cur_value"]')) {
                 tr.querySelector('td[name="cur_value"]').innerHTML = cur_value.length > 0 ? cur_value : '-';
             }
@@ -1203,10 +1289,25 @@ export function getRealtimeData() {
 
 globalThis.getRealtimeData = getRealtimeData;
 
+// Use a module-level timer handle so we never start duplicate intervals
+// even if initDctRule / loadRulesConfig is re-invoked (e.g. re-renders).
+var _dctRealtimeTimer = null;
+
 export function loadRealtimeData() {
-    if (getRealtimeData()) {
-        setInterval(getRealtimeData, 1000);
-    }  
+    // Run once synchronously-first, so Current Value columns populate as
+    // soon as realtime data is available.
+    try { getRealtimeData(); } catch (e) { /* swallow per-tick runtime errors */ }
+    // Use a local callback closure instead of relying on the global
+    // `getRealtimeData` symbol — this makes the interval robust under
+    // module caches / ES-module reloads and ensures it uses the exact
+    // function reference defined/exported by THIS module.
+    if (_dctRealtimeTimer != null) {
+        clearInterval(_dctRealtimeTimer);
+        _dctRealtimeTimer = null;
+    }
+    _dctRealtimeTimer = setInterval(function () {
+        try { getRealtimeData(); } catch (e) { /* swallow */ }
+    }, 1000);
 }
 
 globalThis.loadRealtimeData = loadRealtimeData;
@@ -1519,17 +1620,25 @@ export function initDctRule(table_name) {
         $.get('ajax/dct/get_dctcfg.php?type=' + table_name + '&rule=1',function(data){
             // console.log(data);
             var jsonData = JSON.parse(data);
-            if (jsonData == null)
+            if (jsonData == null) {
+                $('#loading').hide();
                 return;
+            }
 
             var option_list = jsonData.option;
             var tmpData = JSON.parse(jsonData[table_name]);
             addSectionTable(table_name, tmpData, option_list);
             $('#loading').hide();
-        });
 
-        if (table_name != 'system_param')
-            loadRealtimeData();
+            // IMPORTANT: Start the realtime polling ONLY AFTER the rule rows
+            // and their injected Current Value / Write Value columns have
+            // been rendered. Starting it earlier (outside this callback)
+            // meant the very first ticks found an empty table, and the
+            // cached closure/global symbol kept writing stale ";;;;" even
+            // after the rows appeared.
+            if (table_name != 'system_param')
+                loadRealtimeData();
+        });
     }
     
     globalThis.loadRulesConfig = loadRulesConfig;

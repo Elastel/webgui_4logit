@@ -197,6 +197,7 @@ reset_configuration() {
         cat /etc/raspap/system.auth >> /tmp/system.auth
         cp /tmp/system.auth /etc/raspap/system.auth
         chown -R www-data:www-data /etc/raspap/system.auth
+	/var/www/html/installers/update_hostname.sh "MeasureSphere"
 }
 
 set_immutable_if_needed() {

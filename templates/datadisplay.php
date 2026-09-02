@@ -29,7 +29,7 @@
                 <tr class="tr cbi-section-table-titles">
                 <?php
                     $arr= array(
-                      array("name"=>"Tag Name",             "style"=>"background-color:#f0f0f0;"),
+                      array("name"=>"Device Name.Tag Name",             "style"=>"background-color:#f0f0f0;"),
                       array("name"=>"Value",                "style"=>"background-color:#f0f0f0;"),
                       array("name"=>"Write",                "style"=>"background-color:#f0f0f0;"),
                     );

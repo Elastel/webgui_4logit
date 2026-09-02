@@ -7,7 +7,7 @@ config interface 'wan'
 
 config interface 'lan'
 	option ifname 'br0'
-	option ip '192.168.1.1'
+	option ip '10.0.0.10'
 	option netmask '255.255.255.0'
 
 config interface 'swan'

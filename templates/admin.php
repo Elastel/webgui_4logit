@@ -98,7 +98,7 @@
               <input type="hidden" name="username_list" id="username_list" value='<?php echo $str; ?>' id="hidTD">
             </table>
             <div class="cbi-section-create">
-              <input type="button" class="cbi-button-add" name="popBox" value="Add" onclick="addData()">
+              <input type="button" class="cbi-button-add" name="popBox" value="Add" onclick="addDataAuth(); updateAllGroupCounts();">
             </div>
           </div>
           <div class="cbi-page-actions">
@@ -113,10 +113,27 @@
 </div><!-- /.row -->
 
 <?php if ($username == 'superadmin') : ?>
+<style>
+  .purview-toolbar { display: flex; align-items: center; gap: 8px; margin: 24px 0 10px; }
+  .purview-toolbar span { font-weight: bold; margin-right: auto; }
+  .purview-group { border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; }
+  .purview-group-header { display: flex; align-items: center; padding: 6px 10px; background: #f5f5f5; cursor: pointer; user-select: none; }
+  .purview-group-header:hover { background: #ececec; }
+  .purview-group-title { font-weight: bold; flex: 1; }
+  .purview-group-count { color: #666; font-size: 0.85rem; margin-right: 10px; }
+  .purview-group-actions button { margin-left: 4px; font-size: 0.8rem; padding: 2px 8px; }
+  .purview-group-toggle { margin-left: 8px; color: #666; }
+  .purview-group-body { display: none; padding: 4px 10px; }
+</style>
 <div id="popLayer"></div>
 <div id="popBox" style="overflow:auto">
   <input hidden="hidden" name="page_type" id="page_type" value="0">
   <h4><?php echo _("Authentication Setting"); ?></h4>
+  <div class="purview-toolbar">
+    <span><?php echo _("Purview"); ?></span>
+    <button type="button" class="cbi-button" onclick="toggleAllGroups(true)"><?php echo _("Expand All"); ?></button>
+    <button type="button" class="cbi-button" onclick="toggleAllGroups(false)"><?php echo _("Collapse All"); ?></button>
+  </div>
   <div class="cbi-section">
     <div class="cbi-value">
       <label class="cbi-value-title" for="auth.username"><?php echo _("Username"); ?></label>
@@ -128,43 +145,150 @@
       <input id="auth.password" type="text" class="cbi-input-text">
     </div>
 
-    <?php 
-      $array_title = array('Basic', 'Interfaces', 'Modbus Rules', 'ASCII Rules', 'S7 Rules', 
-        'FX Rules', 'MC Rules', 'IEC104 Rules', 'DNP3 Rules', 'OPCUA Rules', 'BACnet Rules', 
-        'EtherNet/IP Rules','Mbus Rules','SNMP Rules','IEC62056-21 Rules','DLMS Rules','IEC61850 Rules',
-        'IO', 'System Parameters', 'Reporting Center', 'Modbus Slave', 'OPCUA Server', 'BACnet Server', 
-        'DNP3 Server', 'Data Monitoring', 'BACnet Router', 'Modbus Router', 'Node Red', 'Docker', 
-        'Terminal', 'GPS Location', 'Scheduled Tasks'
-        );
+    <?php
+      // Build purview groups with same model/feature conditions as sidebar.php
+      $purview_groups = array();
+
+      // Network
+      $net_items = array();
+      $net_items[] = array(_('Wired'), 'wired');
+      if (file_exists('/dev/ttyUSB1') && isLteEnabled())
+        $net_items[] = array(_('LTE'), 'lte');
+      if (isRunning('wpa_supplicant'))
+        $net_items[] = array(_('WiFi Client (WAN)'), 'wlan0');
+      $net_items[] = array(_('LAN'), 'lan');
+      if (file_exists('/sys/class/net/wlan0')) {
+        $net_items[] = array(_('WiFi AP'), 'wifi');
+        $net_items[] = array(_('WiFi Client'), 'wifi_client');
+      }
+      if (isBinExists("failoverd"))
+        $net_items[] = array(_('Online Detection'), 'online_detection');
+      if (isBinExists("lora_pkt_fwd"))
+        $net_items[] = array(_('LoRaWAN'), 'lorawan');
+      if (isBinExists("efw"))
+        $net_items[] = array(_('Firewall'), 'firewall');
+      if (!empty($net_items))
+        $purview_groups[_('Network')] = $net_items;
+
+      // Data Collect
+      if (isBinExists("dctd")) {
+        $dc_items = array();
+        $dc_items[] = array(_('Basic'), 'basic');
+        $dc_items[] = array(_('Interfaces'), 'interfaces');
+        $dc_items[] = array(_('Modbus Rules'), 'modbus');
+        $dc_items[] = array(_('ASCII Rules'), 'ascii');
+        $dc_items[] = array(_('S7 Rules'), 's7');
+        $dc_items[] = array(_('FX Rules'), 'fx');
+        $dc_items[] = array(_('MC Rules'), 'mc');
+        $dc_items[] = array(_('IEC104 Rules'), 'iec104');
+        $dc_items[] = array(_('DNP3 Rules'), 'dnp3cli');
+        $dc_items[] = array(_('OPCUA Rules'), 'opcuacli');
+        $dc_items[] = array(_('BACnet Rules'), 'baccli');
+        $dc_items[] = array(_('EtherNet/IP Rules'), 'ethernetip');
+        $dc_items[] = array(_('Mbus Rules'), 'mbuscli');
+        $dc_items[] = array(_('SNMP Rules'), 'snmpcli');
+        $dc_items[] = array(_('IEC62056-21 Rules'), 'iec1107');
+        $dc_items[] = array(_('DLMS Rules'), 'dlms');
+        $dc_items[] = array(_('IEC61850 Rules'), 'iec61850cli');
+        if (isIoExistts())
+          $dc_items[] = array(_('IO'), 'io');
+        $dc_items[] = array(_('System Parameters'), 'system_param');
+        $dc_items[] = array(_('Reporting Center'), 'server');
+        $dc_items[] = array(_('Modbus Slave'), 'modbus_slave');
+        $dc_items[] = array(_('OPCUA Server'), 'opcua');
+        if (isBinExists("bacserv"))
+          $dc_items[] = array(_('BACnet Server'), 'bacnet');
+        $dc_items[] = array(_('DNP3 Server'), 'dnp3');
+        $dc_items[] = array(_('Data Monitoring'), 'datadisplay');
+        $purview_groups[_('Data Collect')] = $dc_items;
+      }
+
+      // Protocol Convert
+      if (isBinExists("router-mstp") || isBinExists("router-modbus")) {
+        $pc_items = array();
+        if (isBinExists("router-mstp"))
+          $pc_items[] = array(_('BACnet Router'), 'bacnet_router');
+        if (isBinExists("router-modbus"))
+          $pc_items[] = array(_('Modbus Router'), 'modbus_router');
+        if (!empty($pc_items))
+          $purview_groups[_('Protocol Convert')] = $pc_items;
+      }
+
+      // Remote Access
+      if (isBinExists("baseagent") || isBinExists("openvpn") || isBinExists("wg") || isBinExists("noip2")) {
+        $ra_items = array();
+        $tgt = getTarget();
+        if (strpos($tgt, "IQEG") === false && strpos($tgt, "IQEC") === false)
+          $ra_items[] = array(_('ThingsWing'), 'things_wing');
+        if (isBinExists("noip2"))
+          $ra_items[] = array(_('DDNS'), 'ddns');
+        if (isBinExists("openvpn"))
+          $ra_items[] = array(_('OpenVPN'), 'openvpn');
+        if (isBinExists("wg") && isBinExists("wg-quick"))
+          $ra_items[] = array(_('WireGuard'), 'wireguard');
+        if (!empty($ra_items))
+          $purview_groups[_('Remote Access')] = $ra_items;
+      }
+
+      // Services
+      if (isBinExists("node-red") || isBinExists("dockerd") || isBinExists("chirpstack") || isBinExists("iotedge")) {
+        $sv_items = array();
+        if (isBinExists("node-red"))
+          $sv_items[] = array(_('Node Red'), 'nodered');
+        if (isBinExists("dockerd"))
+          $sv_items[] = array(_('Docker'), 'docker');
+        if (isBinExists("chirpstack"))
+          $sv_items[] = array(_('ChirpStack'), 'chirpstack');
+        if (isBinExists("iotedge"))
+          $sv_items[] = array(_('Azure IoT Edge'), 'iotedge');
+        if ((isBinExists("pip3") || isBinExists("python3")) && file_exists('/etc/raspap/api/'))
+          $sv_items[] = array(_('RestAPI'), 'restapi');
+        if (!empty($sv_items))
+          $purview_groups[_('Services')] = $sv_items;
+      }
+
+      // System
+      $sys_items = array();
+      $sys_items[] = array(_('System'), 'system_info');
+      $sys_items[] = array(_('Time Settings'), 'time_setting');
+      if (isBinExists("gpsd"))
+        $sys_items[] = array(_('GPS Location'), 'gps');
+      if (isBinExists("ttyd") || file_exists("/usr/local/bin/ttyd"))
+        $sys_items[] = array(_('Terminal'), 'terminal');
+      if (isBinExists("scheduled"))
+        $sys_items[] = array(_('Scheduled Tasks'), 'scheduled');
+      $tgt = getTarget();
+      if (isBinExists("chromium-browser") && strpos($tgt, 'EH607') !== false)
+        $sys_items[] = array(_('HMI'), 'hmi');
+      $sys_items[] = array(_('Authentication'), 'auth_conf');
+      $sys_items[] = array(_('Backup/Restore'), 'backup_restore');
+      $sys_items[] = array(_('Update/Restore'), 'backup_update');
+      $purview_groups[_('System')] = $sys_items;
 
       $head_name = 'auth';
-      $array_name = array('basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 
-        'dnp3cli', 'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms', 
-        'iec61850cli', 'io', 'system_param', 'server', 'modbus_slave', 'opcua', 'bacnet', 
-        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 'nodered', 'docker', 'terminal', 
-        'gps', 'scheduled');
-
-      // $model = getModel();
-      // if ($model != 'EG500' && $model != 'EG410' && $model != 'EG510' && $model != 'EG600') {
-      //   $key = array_search("IO", $array_title);
-      //   array_splice($array_title, $key, 1); 
-      //   unset($key);
-      //   $key = array_search("io", $array_name);
-      //   array_splice($array_name, $key, 1);
-      //   unset($key);
-      //   $key = array_search("GPS Location", $array_title);
-      //   array_splice($array_title, $key, 1);
-      //   unset($key);
-      //   $key = array_search("gps", $array_name);
-      //   array_splice($array_name, $key, 1);
-      // }
-
-      for ($i = 0; $i < count($array_title); $i++) {
-        echo '<div class="cbi-value">
-          <label class="cbi-value-title">' . _($array_title[$i]) . '</label>
-          <input type="checkbox" class="cbi-input-checkbox" name="'.$head_name.'.'.$array_name[$i].'" id="'.$head_name.'.'.$array_name[$i].'" value="1"/>
-        </div>';
-      } 
+      $gid = 0;
+      foreach ($purview_groups as $group_title => $items) {
+        echo '<div class="purview-group" id="purview-group-' . $gid . '">';
+        echo '<div class="purview-group-header" onclick="togglePurviewGroup(this)">';
+        echo '<span class="purview-group-title">' . $group_title . '</span>';
+        echo '<span class="purview-group-count">0/' . count($items) . '</span>';
+        echo '<span class="purview-group-actions">';
+        echo '<button type="button" class="cbi-button" onclick="event.stopPropagation(); groupSelectAll(this, true);">' . _('Select All') . '</button>';
+        echo '<button type="button" class="cbi-button" onclick="event.stopPropagation(); groupSelectAll(this, false);">' . _('Clear All') . '</button>';
+        echo '</span>';
+        echo '<span class="purview-group-toggle">&#9654;</span>';
+        echo '</div>';
+        echo '<div class="purview-group-body">';
+        foreach ($items as $item) {
+          echo '<div class="cbi-value">
+            <label class="cbi-value-title">' . $item[0] . '</label>
+            <input type="checkbox" class="cbi-input-checkbox" name="' . $head_name . '.' . $item[1] . '" id="' . $head_name . '.' . $item[1] . '" value="1" onchange="updateGroupCount(this)"/>
+          </div>';
+        }
+        echo '</div>';
+        echo '</div>';
+        $gid++;
+      }
     ?>
   </div>
   <div class="right">

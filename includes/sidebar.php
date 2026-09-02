@@ -23,29 +23,29 @@
                     </a>
                     <div class="collapse navbar-collapse" id="navbar-collapse-wan">
                         <ul class="nav navbar-nav navbar-right">
-                            <li class="nav-item" name="wired" id="network_wan_wired"><a class="nav-link" href="wired_conf"><?php echo _("Wired"); ?></a></li>
+                            <?php menuPurviewMatch($purview, 'wired', 'network_wan_wired', 'wired_conf', _('Wired')); ?>
                             <?php if (file_exists('/dev/ttyUSB1') && isLteEnabled()) : ?>
-                            <li class="nav-item" name="lte" id="network_wan_lte"><a class="nav-link" href="lte_conf"><?php echo _("LTE"); ?></a></li>
+                            <?php menuPurviewMatch($purview, 'lte', 'network_wan_lte', 'lte_conf', _('LTE')); ?>
                             <?php endif; ?>
                             <?php if (isRunning('wpa_supplicant')) : ?>
-                            <li class="nav-item" name="wpa" id="network_wan_wpa"><a class="nav-link" href="wlan0_conf"><?php echo _("WiFi Client"); ?></a></li>
+                            <?php menuPurviewMatch($purview, 'wlan0', 'network_wan_wpa', 'wlan0_conf', _('WiFi Client')); ?>
                             <?php endif; ?>
                         </ul>
                     </div>
                 </li>
-                <li class="nav-item" name="lan" id="network_lan" ><a class="nav-link" href="dhcpd_conf"><?php echo _("LAN"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'lan', 'network_lan', 'dhcpd_conf', _('LAN')); ?>
                 <?php if(file_exists('/sys/class/net/wlan0')) :?>
-                <li class="nav-item" name="wifi" id="network_wifi" ><a class="nav-link" href="hostapd_conf"><?php echo _("WiFi AP"); ?></a></li>
-                <li class="nav-item" name="wifi_client" id="network_wifi_client" ><a class="nav-link" href="wpa_conf"><?php echo _("WiFi Client"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'wifi', 'network_wifi', 'hostapd_conf', _('WiFi AP')); ?>
+                <?php menuPurviewMatch($purview, 'wifi_client', 'network_wifi_client', 'wpa_conf', _('WiFi Client')); ?>
                 <?php endif; ?>
                 <?php if (isBinExists("failoverd")) : ?>
-                <li class="nav-item" name="online_detection" id="network_online_detection" ><a class="nav-link" href="detection_conf"><?php echo _("Online Detection"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'online_detection', 'network_online_detection', 'detection_conf', _('Online Detection')); ?>
                 <?php endif; ?>
                 <?php if (isBinExists("lora_pkt_fwd")) : ?>
-                <li class="nav-item" name="lorawan" id="network_lorawan" ><a class="nav-link" href="lorawan_conf"><?php echo _("LoRaWAN"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'lorawan', 'network_lorawan', 'lorawan_conf', _('LoRaWAN')); ?>
                 <?php endif; ?>
                 <?php if (isBinExists("efw")) : ?>
-                <li class="nav-item" name="firewall" id="network_firewall" ><a class="nav-link" href="firewall_conf"><?php echo _("Firewall"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'firewall', 'network_firewall', 'firewall_conf', _('Firewall')); ?>
                 <?php endif; ?>
             </ul>
             </div>
@@ -59,8 +59,8 @@
             <div class="collapse navbar-collapse" id="navbar-collapse-dct">
             <ul class="nav navbar-nav navbar-right">
                 <?php
-                    menuPurviewMatch($purview, 'dct_basic', 'dct_basic', 'basic_conf', _('Basic'));
-                    menuPurviewMatch($purview, 'dct_interfaces', 'dct_interfaces', 'interfaces_conf', _('Interfaces'));
+                    menuPurviewMatch($purview, 'basic', 'dct_basic', 'basic_conf', _('Basic'));
+                    menuPurviewMatch($purview, 'interfaces', 'dct_interfaces', 'interfaces_conf', _('Interfaces'));
                 ?>
                 <li class="nav-item" id="page_south">
                     <a class="nav-link navbar-toggle collapsed" id="south" href="#" data-toggle="collapse" data-target="#navbar-collapse-south">
@@ -143,10 +143,10 @@
             <div class="collapse navbar-collapse" id="navbar-collapse-remote">
                 <ul class="nav navbar-nav navbar-right">
                     <?php if ((strpos($target, "IQEG") === false && strpos($target, "IQEC") === false)) { ?>
-                        <li class="nav-item" name="things_wing" id="remote_things_wing"> <a class="nav-link" href="things_wing"><?php echo _("ThingsWing"); ?></a></li>
+                        <?php menuPurviewMatch($purview, 'things_wing', 'remote_things_wing', 'things_wing', _('ThingsWing')); ?>
                     <?php } ?>
                     <?php if(isBinExists("noip2")) : ?>
-                    <li class="nav-item" name="ddns" id="remote_ddns"> <a class="nav-link" href="ddns"><?php echo _("DDNS"); ?></a></li>
+                    <?php menuPurviewMatch($purview, 'ddns', 'remote_ddns', 'ddns', _('DDNS')); ?>
                     <?php endif; ?>
                     <?php if(isBinExists("openvpn") || isBinExists("wg")) : ?>
                     <li class="nav-item" id="page_vpn">
@@ -156,10 +156,10 @@
                         <div class="collapse navbar-collapse" id="navbar-collapse-vpn">
                             <ul class="nav navbar-nav navbar-right">
                                 <?php if(isBinExists("openvpn")) : ?>
-                                <li class="nav-item" name="openvpn" id="remote_vpn_openvpn"> <a class="nav-link" href="openvpn"><?php echo _("OpenVPN"); ?></a></li>
+                                <?php menuPurviewMatch($purview, 'openvpn', 'remote_vpn_openvpn', 'openvpn', _('OpenVPN')); ?>
                                 <?php endif; ?>
                                 <?php if(isBinExists("wg") && isBinExists("wg-quick")) : ?>
-                                <li class="nav-item" name="wireguard" id="remote_vpn_wireguard"> <a class="nav-link" href="wireguard"><?php echo _("WireGuard"); ?></a></li>
+                                <?php menuPurviewMatch($purview, 'wireguard', 'remote_vpn_wireguard', 'wireguard', _('WireGuard')); ?>
                                 <?php endif; ?>
                             </ul>
                         </div>
@@ -187,13 +187,13 @@
                         }
                     ?>
                     <?php if(isBinExists("chirpstack")) : ?>
-                    <li class="nav-item" name="chirpstack" id="services_chirpstack"> <a class="nav-link" href="chirpstack"><?php echo _("ChirpStack"); ?></a></li>
+                    <?php menuPurviewMatch($purview, 'chirpstack', 'services_chirpstack', 'chirpstack', _('ChirpStack')); ?>
                     <?php endif; ?>
                     <?php if(isBinExists("iotedge")) : ?>
-                    <li class="nav-item" name="iotedge" id="services_iotedge"> <a class="nav-link" href="iotedge"><?php echo _("Azure IoT Edge"); ?></a></li>
+                    <?php menuPurviewMatch($purview, 'iotedge', 'services_iotedge', 'iotedge', _('Azure IoT Edge')); ?>
                     <?php endif; ?>
                     <?php if((isBinExists("pip3") || isBinExists("python3")) &&  file_exists('/etc/raspap/api/')): ?>
-                    <li class="nav-item" name="restapi" id="services_restapi"> <a class="nav-link" href="restapi"><?php echo _("RestAPI"); ?></a></li>
+                    <?php menuPurviewMatch($purview, 'restapi', 'services_restapi', 'restapi', _('RestAPI')); ?>
                     <?php endif; ?>
                 </ul>
                 </div>
@@ -206,8 +206,8 @@
             </a>
             <div class="collapse navbar-collapse" id="navbar-collapse-system">
             <ul class="nav navbar-nav navbar-right">
-                <li class="nav-item" name="system_info" id="system_system_info"> <a class="nav-link" href="system_info"><?php echo _("System"); ?></a></li>
-                <li class="nav-item" name="time_setting" id="system_time_setting"> <a class="nav-link" href="time_setting"><?php echo _("Time Settings"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'system_info', 'system_system_info', 'system_info', _('System')); ?>
+                <?php menuPurviewMatch($purview, 'time_setting', 'system_time_setting', 'time_setting', _('Time Settings')); ?>
                 <?php 
                     if(isBinExists("gpsd")) {
                         menuPurviewMatch($purview, 'gps', 'system_gps', 'gps', _('GPS Location'));
@@ -222,11 +222,11 @@
                     }
                 ?>
                 <?php if(isBinExists("chromium-browser") && strpos($target, 'EH607') !== false) : ?>
-                <li class="nav-item" name="hmi" id="system_hmi"> <a class="nav-link" href="hmi"><?php echo _("HMI"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'hmi', 'system_hmi', 'hmi', _('HMI')); ?>
                 <?php endif; ?>
-                <li class="nav-item" name="auth_conf" id="system_auth_conf"> <a class="nav-link" href="auth_conf"><?php echo _("Authentication"); ?></a></li>
-                <li class="nav-item" name="backup_restore" id="system_backup_restore"> <a class="nav-link" href="backup_restore"><?php echo _("Backup/Restore"); ?></a></li>
-                <li class="nav-item" name="backup_update" id="system_backup_update"> <a class="nav-link" href="backup_update"><?php echo _("Update/Restore"); ?></a></li>
+                <?php menuPurviewMatch($purview, 'auth_conf', 'system_auth_conf', 'auth_conf', _('Authentication')); ?>
+                <?php menuPurviewMatch($purview, 'backup_restore', 'system_backup_restore', 'backup_restore', _('Backup/Restore')); ?>
+                <?php menuPurviewMatch($purview, 'backup_update', 'system_backup_update', 'backup_update', _('Update/Restore')); ?>
             </ul>
             </div>
         </li>
@@ -236,7 +236,7 @@
         </li>
         <?php elseif ($target == '4logit') : ?>
         <li class="nav-item">
-            <a class="nav-link" href="about"><i class="fas fa-info-circle fa-fw mr-2"></i><span class="nav-label"><?php echo _("About 4Logit"); ?></a>
+            <a class="nav-link" href="about"><i class="fas fa-info-circle fa-fw mr-2"></i><span class="nav-label"><?php echo _("About"); ?></a>
         </li>   
         <?php endif; ?>
         <li class="nav-item">

@@ -1,5 +1,5 @@
 
-import "./modules/system.js";
+import "./modules/system.js?v=1788260515";
 import {
     setCSRFTokenHeader,
     getCookie,
@@ -7,36 +7,43 @@ import {
     disableValidation,
     setDarkMode,
     setLightMode
-} from "./helpers.js";
+} from "./helpers.js?v=1788260515";
 
-import { initLogin } from "./modules/login.js";
-import { initSession } from "./modules/session.js";
-import { initDashboard } from "./modules/dashboard.js";
-import { initNetworking } from "./modules/networking.js";
-import { initDHCP } from "./modules/dhcp.js";
-import { initHostapd } from "./modules/hostapd.js"
-import { initWPA } from "./modules/wpa.js"
-import { initLorawan } from "./modules/lorawan.js"
-import { initDctBasic } from "./modules/dct-basic.js"
-import { initDctInterface } from "./modules/dct-interface.js"
-import { initDctRule } from "./modules/dct-rule.js"
-import { initDctServer } from "./modules/dct-server.js"
-import { initDctModbusSlave } from "./modules/dct-modbusslave.js"
-import { initDctOpcuaServer } from "./modules/dct-opcuaserver.js"
-import { initDctBacnetServer } from "./modules/dct-bacnetserver.js"
-import { initDctDnp3Server } from "./modules/dct-dnp3server.js"
-import { initDctDataDisplay } from "./modules/dct-datadisplay.js"
-import { initAdblock } from "./modules/adblock.js"
-import { initFirewall } from "./modules/firewall.js"
-import { initOpenVPN } from "./modules/openvpn.js"
-import { initWireGuard } from "./modules/wg.js"
-import { initModbusRouter } from "./modules/modbus-router.js"
-import { initBacnetRouter } from "./modules/bacnet-router.js"
-import { initDDNS } from "./modules/ddns.js"
-import { initServiceIotedge } from "./modules/service-iotedge.js"
-import { initGps } from "./modules/gps.js"
-import { initPlugins } from "./modules/plugins.js"
-import { initRestApi } from "./modules/restapi.js"
+// Import map support is not universal enough to reliably carry the
+// realtime-data refresh implementation updates through the browser's
+// ES-module cache. Rebuild module imports with an inline ?v= query
+// fingerprint so each cached module URL carries a version of app.js,
+// causing dct-rule.js (and every sibling) to be re-fetched when any
+// source changes.
+
+import { initLogin } from "./modules/login.js?v=1788260515";
+import { initSession } from "./modules/session.js?v=1788260515";
+import { initDashboard } from "./modules/dashboard.js?v=1788260515";
+import { initNetworking } from "./modules/networking.js?v=1788260515";
+import { initDHCP } from "./modules/dhcp.js?v=1788260515";
+import { initHostapd } from "./modules/hostapd.js?v=1788260515"
+import { initWPA } from "./modules/wpa.js?v=1788260515"
+import { initLorawan } from "./modules/lorawan.js?v=1788260515"
+import { initDctBasic } from "./modules/dct-basic.js?v=1788260515"
+import { initDctInterface } from "./modules/dct-interface.js?v=1788260515"
+import { initDctRule } from "./modules/dct-rule.js?v=1788260515"
+import { initDctServer } from "./modules/dct-server.js?v=1788260515"
+import { initDctModbusSlave } from "./modules/dct-modbusslave.js?v=1788260515"
+import { initDctOpcuaServer } from "./modules/dct-opcuaserver.js?v=1788260515"
+import { initDctBacnetServer } from "./modules/dct-bacnetserver.js?v=1788260515"
+import { initDctDnp3Server } from "./modules/dct-dnp3server.js?v=1788260515"
+import { initDctDataDisplay } from "./modules/dct-datadisplay.js?v=1788260515"
+import { initAdblock } from "./modules/adblock.js?v=1788260515"
+import { initFirewall } from "./modules/firewall.js?v=1788260515"
+import { initOpenVPN } from "./modules/openvpn.js?v=1788260515"
+import { initWireGuard } from "./modules/wg.js?v=1788260515"
+import { initModbusRouter } from "./modules/modbus-router.js?v=1788260515"
+import { initBacnetRouter } from "./modules/bacnet-router.js?v=1788260515"
+import { initDDNS } from "./modules/ddns.js?v=1788260515"
+import { initServiceIotedge } from "./modules/service-iotedge.js?v=1788260515"
+import { initGps } from "./modules/gps.js?v=1788260515"
+import { initPlugins } from "./modules/plugins.js?v=1788260515"
+import { initRestApi } from "./modules/restapi.js?v=1788260515"
 
 function initFormValidation() {
     document.addEventListener('submit', function (e) {
@@ -321,11 +328,36 @@ function initMenu() {
     });
 }
 
+function hideEmptyMenus() {
+    // Hide top-level / second-level menu items that contain no visible child
+    // items (the child items are rendered server-side according to purview).
+    var changed = true;
+    while (changed) {
+        changed = false;
+        $('.sidebar li.nav-item').each(function () {
+            var $li = $(this);
+            if ($li.data('emptyHidden')) return;
+            var $collapse = $li.children('.collapse');
+            if ($collapse.length === 0) return;
+            var hasChild = $collapse.children('ul').first()
+                .children('li.nav-item')
+                .filter(function () { return !$(this).data('emptyHidden'); })
+                .length > 0;
+            if (!hasChild) {
+                $li.hide();
+                $li.data('emptyHidden', true);
+                changed = true;
+            }
+        });
+    }
+}
+
 function initApp() {
     initSession();
     initFormValidation();
     bindEvents();
     initMenu();
+    hideEmptyMenus();
     contentLoaded();
 
     $(document).ajaxSend(setCSRFTokenHeader);

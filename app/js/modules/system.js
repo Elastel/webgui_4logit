@@ -212,32 +212,41 @@ function getTableDataAuth() {
 
 function editDataAuth(object) {
     var row = $(object).parent().parent().parent().prevAll().length + 1;
-    console.log(row);
     document.getElementById("page_type").value = row;
     var num = 0;
     var value = $(object).parent().parent().find("td");
     var username = value.eq(num++).text();
     var password = value.eq(num++).text();
     var purview = value.eq(num++).text();
-    var decimal = parseInt(purview, 16);
-    var array_name = ['basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 
-        'dnp3cli', 'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms', 
+    var hex = String(purview).trim().replace(/^0x/i, '');
+    if (hex.length % 2 != 0) {
+        hex = '0' + hex;
+    }
+    var bitLength = hex.length * 4;
+    var big = BigInt('0x' + (hex || '0'));
+    var array_name = ['wired', 'lte', 'wlan0', 'lan', 'wifi', 'wifi_client', 
+        'online_detection', 'lorawan', 'firewall', 
+        'basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 'dnp3cli', 
+        'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms', 
         'iec61850cli', 'io', 'system_param', 'server', 'modbus_slave', 'opcua', 'bacnet', 
-        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 'nodered', 'docker', 'terminal', 
-        'gps', 'scheduled'];
-    var i = 0;
-
+        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 
+        'things_wing', 'ddns', 'openvpn', 'wireguard', 
+        'nodered', 'docker', 'chirpstack', 'iotedge', 'restapi', 
+        'system_info', 'time_setting', 'gps', 'terminal', 'scheduled', 'hmi', 'auth_conf', 
+        'backup_restore', 'backup_update'];
     document.getElementById("auth.username").value = username;
-    document.getElementById("auth.username").disabled = true; 
+    document.getElementById("auth.username").disabled = true;
     document.getElementById("auth.password").value = password;
-    array_name.forEach(function(info){
+    array_name.forEach(function(info, index){
         if (document.getElementById('auth.' + info)) {
-            var status = (parseInt(decimal) >> i) & 1;
+            // Bits beyond the stored purview length are treated as granted,
+            // so legacy users keep the menus they had before.
+            var status = (index >= bitLength) ? 1 : Number((big >> BigInt(index)) & 1n);
             document.getElementById('auth.' + info).checked = (status == 1) ? true : false;
-            i++;
         }
     })
 
+    updateAllGroupCounts();
     openBox();
 }
 
@@ -255,32 +264,61 @@ function delDataAuth(object) {
 
 globalThis.delDataAuth = delDataAuth;
 
+function addDataAuth() {
+    openBox();
+    document.getElementById("auth.username").value = "";
+    document.getElementById("auth.username").disabled = false;
+    document.getElementById("auth.password").value = "";
+    document.getElementById("page_type").value = "0";
+
+    var array_name = ['wired', 'lte', 'wlan0', 'lan', 'wifi', 'wifi_client',
+        'online_detection', 'lorawan', 'firewall',
+        'basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 'dnp3cli',
+        'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms',
+        'iec61850cli', 'io', 'system_param', 'server', 'modbus_slave', 'opcua', 'bacnet',
+        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router',
+        'things_wing', 'ddns', 'openvpn', 'wireguard',
+        'nodered', 'docker', 'chirpstack', 'iotedge', 'restapi',
+        'system_info', 'time_setting', 'gps', 'terminal', 'scheduled', 'hmi', 'auth_conf',
+        'backup_restore', 'backup_update'];
+    array_name.forEach(function(name) {
+        var cb = document.getElementById('auth.' + name);
+        if (cb) cb.checked = false;
+    });
+}
+globalThis.addDataAuth = addDataAuth;
+
 function saveDataAuth() {
     var result = [];
-    var array_name = ['basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 
-        'dnp3cli', 'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms', 
+    var array_name = ['wired', 'lte', 'wlan0', 'lan', 'wifi', 'wifi_client', 
+        'online_detection', 'lorawan', 'firewall', 
+        'basic', 'interfaces', 'modbus', 'ascii', 's7', 'fx', 'mc', 'iec104', 'dnp3cli', 
+        'opcuacli', 'baccli', 'ethernetip', 'mbuscli', 'snmpcli', 'iec1107', 'dlms', 
         'iec61850cli', 'io', 'system_param', 'server', 'modbus_slave', 'opcua', 'bacnet', 
-        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 'nodered', 'docker', 'terminal', 
-        'gps', 'scheduled'];
+        'dnp3', 'datadisplay', 'bacnet_router', 'modbus_router', 
+        'things_wing', 'ddns', 'openvpn', 'wireguard', 
+        'nodered', 'docker', 'chirpstack', 'iotedge', 'restapi', 
+        'system_info', 'time_setting', 'gps', 'terminal', 'scheduled', 'hmi', 'auth_conf', 
+        'backup_restore', 'backup_update'];
     var username = document.getElementById("auth.username").value;
     var password = document.getElementById("auth.password").value;
     var page_type = document.getElementById("page_type").value;
-    var purview = 0;
-    var int_purview = 0;
-    var i = 0;
+    var int_purview = 0n;
 
-    array_name.forEach(function(info) {
+    array_name.forEach(function(info, index) {
         var checkbox = document.getElementById('auth.' + info);
         if (checkbox) {
-                // 使用三元运算符确保得到 0 或 1
-                var status = checkbox.checked ? 1 : 0;
-                // 使用 >>> 0 确保无符号位移
-                int_purview = int_purview | (status << i);
-                i++;
-            }
+            var status = checkbox.checked ? 1n : 0n;
+            int_purview = int_purview | (status << BigInt(index));
+        }
     });
 
-    purview = (int_purview >>> 0).toString(16).toUpperCase();
+    // Keep a fixed width (14 hex chars = 56 bits) so that cleared high bits
+    // are stored explicitly and hide the corresponding menus.
+    var purview = int_purview.toString(16).toUpperCase();
+    while (purview.length < 14) {
+        purview = '0' + purview;
+    }
 
     if (page_type == "0") {
         var usernameList = document.getElementById("username_list").value;
@@ -321,3 +359,51 @@ function saveDataAuth() {
 }
 
 globalThis.saveDataAuth = saveDataAuth;
+
+function updateGroupCountByGroup(group) {
+    if (!group || group.length === 0) return;
+    var count = group.find('.purview-group-body input[type="checkbox"]:checked').length;
+    var total = group.find('.purview-group-body input[type="checkbox"]').length;
+    group.find('.purview-group-count').text(count + '/' + total);
+}
+
+function updateGroupCount(checkbox) {
+    updateGroupCountByGroup($(checkbox).closest('.purview-group'));
+}
+
+globalThis.updateGroupCount = updateGroupCount;
+
+function updateAllGroupCounts() {
+    $('.purview-group').each(function () {
+        updateGroupCountByGroup($(this));
+    });
+}
+
+globalThis.updateAllGroupCounts = updateAllGroupCounts;
+
+function groupSelectAll(btn, checked) {
+    var group = $(btn).closest('.purview-group');
+    group.find('.purview-group-body input[type="checkbox"]').prop('checked', checked);
+    updateGroupCountByGroup(group);
+}
+
+globalThis.groupSelectAll = groupSelectAll;
+
+function togglePurviewGroup(header) {
+    var group = $(header).closest('.purview-group');
+    var body = group.find('.purview-group-body');
+    body.toggle();
+    group.find('.purview-group-toggle').html(body.is(':visible') ? '&#9660;' : '&#9654;');
+}
+
+globalThis.togglePurviewGroup = togglePurviewGroup;
+
+function toggleAllGroups(expand) {
+    $('.purview-group').each(function () {
+        var body = $(this).find('.purview-group-body');
+        body.toggle(expand);
+        $(this).find('.purview-group-toggle').html(expand ? '&#9660;' : '&#9654;');
+    });
+}
+
+globalThis.toggleAllGroups = toggleAllGroups;
